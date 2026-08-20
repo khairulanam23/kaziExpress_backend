@@ -1,0 +1,237 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Inventory Management Backend API",
+    "version": "1.0.0",
+    "description": "Production-ready RESTful API for Core Inventory, BOM Product Costing, Explicit Material Batch Allocation, Production Task Execution, Attendance & Overtime, Monthly Payroll, System Notifications Event System, and Reporting/Analytics."
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "API v1 Endpoint"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Enter your JWT token in the format: Bearer <token>"
+      }
+    },
+    "schemas": {
+      "ApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "statusCode": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "Operation completed successfully" },
+          "data": { "type": "object" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "statusCode": { "type": "integer", "example": 400 },
+          "message": { "type": "string", "example": "Error details message" }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/docs": {
+      "get": {
+        "summary": "Get OpenAPI Specification JSON",
+        "tags": ["Documentation"],
+        "security": [],
+        "responses": {
+          "200": { "description": "OpenAPI Specification" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "User Login",
+        "tags": ["Auth"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "example": "admin@example.com" },
+                  "password": { "type": "string", "example": "12345678" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Login successful, returns JWT access and refresh tokens" },
+          "401": { "description": "Invalid credentials" }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "summary": "Get current logged-in user profile",
+        "tags": ["Auth"],
+        "responses": {
+          "200": { "description": "Current user profile" }
+        }
+      }
+    },
+    "/products": {
+      "get": {
+        "summary": "List / Search Inventory Products & Components",
+        "tags": ["Products"],
+        "parameters": [
+          { "name": "itemType", "in": "query", "schema": { "type": "string", "enum": ["COMPONENT", "PRODUCT"] } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } },
+          { "name": "pageNo", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "showPerPage", "in": "query", "schema": { "type": "integer", "default": 20 } }
+        ],
+        "responses": {
+          "200": { "description": "Paginated list of inventory items" }
+        }
+      },
+      "post": {
+        "summary": "Create Item / Component (Admin Only)",
+        "tags": ["Products"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "unitPrice", "itemType"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "sku": { "type": "string" },
+                  "itemType": { "type": "string", "enum": ["COMPONENT", "PRODUCT"] },
+                  "unit": { "type": "string" },
+                  "unitPrice": { "type": "number" },
+                  "currentStock": { "type": "number" },
+                  "lowStockThreshold": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Product created successfully" }
+        }
+      }
+    },
+    "/products/{id}/bom": {
+      "get": {
+        "summary": "Get Product BOM Tree & Suggested Cost",
+        "tags": ["Products"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "BOM hierarchy and cost breakdown" } }
+      },
+      "put": {
+        "summary": "Replace Product BOM (Admin Only)",
+        "tags": ["Products"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "BOM replaced successfully" } }
+      }
+    },
+    "/tasks": {
+      "get": {
+        "summary": "List Production Tasks (Admin sees all, Employee sees assigned)",
+        "tags": ["Production Tasks"],
+        "responses": { "200": { "description": "Paginated list of production tasks" } }
+      },
+      "post": {
+        "summary": "Create Production Task with Explicit Batch Allocation (Admin Only)",
+        "tags": ["Production Tasks"],
+        "responses": { "201": { "description": "Production task created" } }
+      }
+    },
+    "/tasks/{id}/accept": {
+      "post": {
+        "summary": "Accept Task & Reserve Material Batches",
+        "tags": ["Production Tasks"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Task accepted and inventory reserved" } }
+      }
+    },
+    "/tasks/{id}/report-production": {
+      "post": {
+        "summary": "Report Completed / Partial Production",
+        "tags": ["Production Tasks"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Production reported, materials consumed, output batch created" } }
+      }
+    },
+    "/attendance/check-in": {
+      "post": {
+        "summary": "Employee Check-in",
+        "tags": ["Attendance"],
+        "responses": { "200": { "description": "Checked in successfully" } }
+      }
+    },
+    "/attendance/check-out": {
+      "post": {
+        "summary": "Employee Check-out",
+        "tags": ["Attendance"],
+        "responses": { "200": { "description": "Checked out successfully" } }
+      }
+    },
+    "/payroll/me": {
+      "get": {
+        "summary": "Get Current Employee Monthly Payroll Summary",
+        "tags": ["Payroll"],
+        "responses": { "200": { "description": "Employee payroll summary" } }
+      }
+    },
+    "/payroll/payments": {
+      "get": {
+        "summary": "Get Salary Payment History (Admin sees all, Employee sees own)",
+        "tags": ["Payroll"],
+        "responses": { "200": { "description": "Salary payment records" } }
+      },
+      "post": {
+        "summary": "Record Salary Payment (Admin Only)",
+        "tags": ["Payroll"],
+        "responses": { "201": { "description": "Salary payment recorded" } }
+      }
+    },
+    "/dashboard/overview": {
+      "get": {
+        "summary": "Get Main Dashboard Overview Metrics",
+        "tags": ["Dashboard"],
+        "parameters": [
+          { "name": "from", "in": "query", "schema": { "type": "string", "example": "2026-08-01" } },
+          { "name": "to", "in": "query", "schema": { "type": "string", "example": "2026-08-31" } }
+        ],
+        "responses": { "200": { "description": "Dashboard overview metrics" } }
+      }
+    },
+    "/reports/inventory": {
+      "get": {
+        "summary": "Get Inventory Valuation & Summary Report (Admin Only)",
+        "tags": ["Reports"],
+        "responses": { "200": { "description": "Inventory report data" } }
+      }
+    },
+    "/reports/stock-movements": {
+      "get": {
+        "summary": "Get Stock Movements Audit Trail Report (Admin Only)",
+        "tags": ["Reports"],
+        "responses": { "200": { "description": "Audit trail records" } }
+      }
+    }
+  }
+}

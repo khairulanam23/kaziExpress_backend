@@ -1,0 +1,689 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ======================
+// ENUMS
+// ======================
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum PayCalculationMode {
+  HOURLY
+  DAILY_PLUS_OVERTIME
+}
+
+enum TaskStatus {
+  PENDING
+  ACCEPTED
+  IN_PROGRESS
+  PARTIALLY_COMPLETED
+  COMPLETED
+  CANCELLED
+}
+
+enum StockMovementType {
+  PURCHASE
+  CONSUMPTION
+  ADJUSTMENT
+  WRITE_OFF
+  RETURN
+  ASSEMBLY
+  TASK_RESERVATION
+  TASK_RELEASE
+  DAMAGE
+  REFILL
+}
+
+enum ProductRequestType {
+  TASK_RELATED
+  GENERAL
+}
+
+enum ProductRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AttendanceSource {
+  FINGERPRINT
+  MANUAL
+  WEB
+}
+
+enum OvertimeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ItemType {
+  COMPONENT
+  PRODUCT
+}
+
+enum DocumentCategory {
+  PERSONAL
+  BUSINESS
+}
+
+// ======================
+// MODELS
+// ======================
+
+model User {
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  password              String
+  role                  Role      @default(EMPLOYEE)
+  name                  String?
+  address               String?
+  phone                 String?
+  isActive              Boolean   @default(true)
+  fingerprintData       String?
+  fingerprintRegistered Boolean   @default(false)
+
+  // ── Profile photo (public asset — avatars are not legal documents) ──
+  avatarUrl             String?
+  avatarStorageId       String?
+
+  // ── Personal / legal identity ──
+  dateOfBirth           DateTime? @db.Date
+  nidNumber             String?
+
+  // ── Emergency contact ──
+  emergencyContactName         String?
+  emergencyContactPhone        String?
+  emergencyContactRelationship String?
+
+  // Single active refresh token (hashed). Rotated on every /auth/refresh call.
+  refreshTokenHash      String?
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  lastLogin             DateTime?
+
+  // Relations
+  employeeProfile       EmployeeProfile?
+  employeeDocuments     EmployeeDocument[]
+  attendances           Attendance[]
+  attendanceOverrides   Attendance[]           @relation("AttendanceOverriddenBy")
+  overtimeDecidedAttendances Attendance[]      @relation("OvertimeDecidedBy")
+  taskAssignments       TaskAssignment[]
+  requestedProducts     ProductRequest[]       @relation("RequestedBy")
+  approvedRequests      ProductRequest[]       @relation("ApprovedBy")
+  stockMovements        StockMovement[]
+  createdTasks          Task[]                 @relation("CreatedBy")
+  completedTasks        Task[]                 @relation("CompletedBy")
+  monthlyReports        MonthlyReport[]
+  systemConfigUpdates   SystemConfig[]
+  employeeRecords       EmployeeRecord[]
+  createdContentTypes   ContentType[]          @relation("ContentTypeCreatedBy")
+  createdBatches        InventoryBatch[]
+  salaryPaymentsReceived SalaryPayment[]        @relation("SalaryPaymentEmployee")
+  salaryPaymentsGiven    SalaryPayment[]        @relation("SalaryPaymentPaidBy")
+  payrollSnapshots       MonthlyPayrollSnapshot[] @relation("PayrollSnapshotEmployee")
+  notifications          Notification[]
+  organizationUpdates    OrganizationProfile[]  @relation("OrganizationUpdatedBy")
+
+  @@index([role])
+  @@index([isActive])
+  @@map("users")
+}
+
+model EmployeeProfile {
+  id                 String             @id @default(uuid())
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  hourlyRate         Decimal            @db.Decimal(12, 2)
+  dailyRate          Decimal?           @db.Decimal(12, 2)
+  payCalculationMode PayCalculationMode @default(HOURLY)
+  overtimeMultiplier Decimal            @default(1.5) @db.Decimal(4, 2)
+
+  lateGraceMinutes   Int                @default(10)
+  earlyLeavePenalty  Boolean            @default(true)
+  missingPunchRules  Json?
+  department         String?
+  designation        String?
+  joinDate           DateTime?
+
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@map("employee_profiles")
+}
+
+model EmployeeDocument {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name            String
+  documentType    String    // free-form slug: NID | PASSPORT | OTHER_ID | TRADE_LICENSE | ...
+  category        DocumentCategory @default(PERSONAL)
+
+  // `fileUrl` is retained for rows written before private storage existed.
+  // New uploads leave it null and are streamed through the authenticated
+  // document endpoint using `fileStorageId` only — never a direct URL.
+  fileUrl         String?
+  fileStorageId   String
+  isPrivate       Boolean   @default(true)
+
+  originalFileName String?
+  mimeType         String?
+  fileSize         Int?
+
+  expiryDate      DateTime?
+  isVerified      Boolean   @default(false)
+  notes           String?
+
+  uploadedAt      DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([userId, category])
+  @@map("employee_documents")
+}
+
+model Vendor {
+  id        String    @id @default(uuid())
+  name      String
+  contact   String?
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?
+  isActive  Boolean   @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  products       Product[]
+  productVendors Product[] @relation("ProductVendors")
+
+  @@map("vendors")
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products          Product[]
+  productCategories Product[] @relation("ProductCategories")
+
+  @@index([name])
+  @@map("categories")
+}
+
+model Product {
+  id                        String    @id @default(uuid())
+  sku                       String?   @unique
+  name                      String
+  description               String?
+  itemType                  ItemType  @default(PRODUCT)
+  unit                      String    @default("Piece")
+  remarks                   String?
+  unitPrice                 Decimal   @db.Decimal(12, 2)
+  currency                  String    @default("MNT")
+  currentStock              Decimal   @default(0) @db.Decimal(14, 3)
+  lowStockThreshold         Decimal?  @db.Decimal(14, 3)
+  reorderTimeDays           Int?
+  quantityInReorder         Decimal?  @db.Decimal(14, 3)
+  isComposite                Boolean  @default(false)
+  isDiscontinued            Boolean   @default(false)
+
+  imageUrl                  String?
+  imageStorageId            String?
+
+  negativeSince              DateTime?
+  negativeStockAllowedUntil  DateTime?
+
+  vendorId                   String?
+  vendor                     Vendor?    @relation(fields: [vendorId], references: [id])
+  vendors                    Vendor[]   @relation("ProductVendors")
+
+  categoryId                 String?
+  category                   Category?  @relation(fields: [categoryId], references: [id])
+  categories                 Category[] @relation("ProductCategories")
+
+  customFields                Json    @default("{}")
+
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  bomAsParent                  ProductBOM[]           @relation("ParentProduct")
+  bomAsChild                    ProductBOM[]          @relation("ChildProduct")
+  stockMovements                 StockMovement[]
+  taskRequiredProducts            TaskRequiredProduct[]
+  productRequests                  ProductRequest[]
+  batches                          InventoryBatch[]
+  tasksAsOutput                    Task[]                 @relation("TaskOutputProduct")
+
+  @@index([currentStock])
+  @@index([isDiscontinued])
+  @@index([name])
+  @@index([itemType])
+  @@map("products")
+}
+
+model ProductBOM {
+  id                String   @id @default(uuid())
+  parentProductId   String
+  childProductId    String
+  quantityRequired  Decimal  @db.Decimal(14, 4)
+
+  parentProduct     Product  @relation("ParentProduct", fields: [parentProductId], references: [id], onDelete: Cascade)
+  childProduct      Product  @relation("ChildProduct", fields: [childProductId], references: [id], onDelete: Restrict)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([parentProductId, childProductId])
+  @@map("product_boms")
+}
+
+model InventoryBatch {
+  id                String                @id @default(uuid())
+  batchNumber       String                @unique
+  productId         String
+  product           Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  initialQuantity   Decimal               @db.Decimal(14, 3)
+  remainingQuantity Decimal               @db.Decimal(14, 3)
+  reservedQuantity  Decimal               @default(0) @db.Decimal(14, 3)
+  createdById       String
+  createdBy         User                  @relation(fields: [createdById], references: [id])
+  sourceTaskId      String?
+  sourceTask        Task?                 @relation("OutputBatches", fields: [sourceTaskId], references: [id])
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  stockMovements    StockMovement[]
+  taskAllocations   TaskBatchAllocation[]
+
+  @@index([productId])
+  @@map("inventory_batches")
+}
+
+model StockMovement {
+  id               String            @id @default(uuid())
+  productId        String
+  product          Product           @relation(fields: [productId], references: [id])
+
+  batchId          String?
+  batch            InventoryBatch?   @relation(fields: [batchId], references: [id])
+
+  type             StockMovementType
+  quantity         Decimal           @db.Decimal(14, 3)
+  previousQuantity Decimal?          @db.Decimal(14, 3)
+  newQuantity      Decimal?          @db.Decimal(14, 3)
+  unitCost         Decimal           @db.Decimal(12, 4)
+  totalCost        Decimal           @db.Decimal(14, 2)
+
+  relatedTaskId    String?
+  relatedTask      Task?             @relation(fields: [relatedTaskId], references: [id])
+
+  relatedRequestId String?
+  relatedRequest   ProductRequest?   @relation(fields: [relatedRequestId], references: [id])
+
+  performedById    String?
+  performedBy      User?             @relation(fields: [performedById], references: [id])
+
+  notes            String?
+  reason           String?
+  createdAt        DateTime          @default(now())
+
+  @@index([productId, createdAt])
+  @@index([type])
+  @@index([relatedTaskId])
+  @@index([batchId])
+  @@map("stock_movements")
+}
+
+model Task {
+  id                 String                @id @default(uuid())
+  title              String
+  description        String?
+  status             TaskStatus            @default(PENDING)
+
+  productId          String?
+  product            Product?              @relation("TaskOutputProduct", fields: [productId], references: [id])
+
+  productionQuantity Decimal               @default(0) @db.Decimal(14, 3)
+  completedQuantity  Decimal               @default(0) @db.Decimal(14, 3)
+  remainingQuantity  Decimal               @default(0) @db.Decimal(14, 3)
+
+  deadline           DateTime?             @db.Date
+  acceptedAt         DateTime?
+  startedAt          DateTime?
+
+  parentTaskId       String?
+  parentTask         Task?                 @relation("SubTasks", fields: [parentTaskId], references: [id])
+  subTasks           Task[]                @relation("SubTasks")
+
+  createdById        String
+  createdBy          User                  @relation("CreatedBy", fields: [createdById], references: [id])
+
+  completedById      String?
+  completedBy        User?                 @relation("CompletedBy", fields: [completedById], references: [id])
+  completedAt        DateTime?
+
+  productsSnapshot    Json?
+
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  assignments        TaskAssignment[]
+  requiredProducts   TaskRequiredProduct[]
+  batchAllocations   TaskBatchAllocation[]
+  outputBatches      InventoryBatch[]      @relation("OutputBatches")
+  productRequests    ProductRequest[]
+  stockMovements     StockMovement[]
+
+  @@index([status])
+  @@map("tasks")
+}
+
+model TaskAssignment {
+  id         String   @id @default(uuid())
+  taskId     String
+  employeeId String
+  assignedAt DateTime @default(now())
+
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  employee   User     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, employeeId])
+  @@map("task_assignments")
+}
+
+model TaskRequiredProduct {
+  id        String   @id @default(uuid())
+  taskId    String
+  productId String
+  quantity  Decimal  @db.Decimal(14, 3)
+  unitPrice Decimal? @db.Decimal(12, 2)
+  unit      String?
+
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@unique([taskId, productId])
+  @@map("task_required_products")
+}
+
+model TaskBatchAllocation {
+  id                String         @id @default(uuid())
+  taskId            String
+  task              Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  batchId           String
+  batch             InventoryBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  allocatedQuantity Decimal        @db.Decimal(14, 3)
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@unique([taskId, batchId])
+  @@map("task_batch_allocations")
+}
+
+model ProductRequest {
+  id              String               @id @default(uuid())
+  productId       String
+  product         Product              @relation(fields: [productId], references: [id])
+
+  quantity        Decimal              @db.Decimal(14, 3)
+  type            ProductRequestType
+  status          ProductRequestStatus @default(PENDING)
+
+  taskId          String?
+  task            Task?                @relation(fields: [taskId], references: [id])
+
+  requestedById   String
+  requestedBy     User                 @relation("RequestedBy", fields: [requestedById], references: [id])
+
+  approvedById    String?
+  approvedBy      User?                @relation("ApprovedBy", fields: [approvedById], references: [id])
+
+  reason          String?
+  rejectionReason String?
+  bomSnapshot     Json?
+
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  stockMovements  StockMovement[]
+
+  @@index([status])
+  @@index([taskId])
+  @@map("product_requests")
+}
+
+model Attendance {
+  id                  String           @id @default(uuid())
+  employeeId          String
+  employee            User             @relation(fields: [employeeId], references: [id])
+
+  date                DateTime         @db.Date
+  checkIn             DateTime?
+  checkOut            DateTime?
+
+  workedHours         Decimal?         @db.Decimal(6, 2)
+  calculatedHours     Decimal?         @db.Decimal(6, 2)
+  requiredHours       Decimal          @default(8.0) @db.Decimal(4, 2)
+  overtimeHours       Decimal?         @db.Decimal(6, 2)
+  adminOvertimeHours  Decimal?         @db.Decimal(6, 2)
+  overtimeStatus      OvertimeStatus   @default(PENDING)
+  overtimeReason      String?
+  overtimeDecidedById String?
+  overtimeDecidedBy   User?            @relation("OvertimeDecidedBy", fields: [overtimeDecidedById], references: [id])
+  overtimeDecidedAt   DateTime?
+
+  lateMinutes         Int              @default(0)
+  earlyMinutes        Int              @default(0)
+
+  source              AttendanceSource @default(MANUAL)
+  isOverride          Boolean          @default(false)
+  overriddenById      String?
+  overriddenBy        User?            @relation("AttendanceOverriddenBy", fields: [overriddenById], references: [id])
+  overrideReason      String?
+  overrideOldValues   Json?
+
+  notes               String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([date])
+  @@index([overtimeStatus])
+  @@map("attendances")
+}
+
+model SystemConfig {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       Json
+  description String?
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+  updatedBy   User?    @relation(fields: [updatedById], references: [id])
+
+  @@map("system_configs")
+}
+
+model MonthlyReport {
+  id             String   @id @default(uuid())
+  year           Int
+  month          Int
+  totalPurchases Decimal  @db.Decimal(14, 2)
+  totalCogs      Decimal  @db.Decimal(14, 2)
+  inventoryValue Decimal  @db.Decimal(14, 2)
+  reportData     Json
+  generatedAt    DateTime @default(now())
+  generatedById  String?
+  generatedBy    User?    @relation(fields: [generatedById], references: [id])
+
+  @@unique([year, month])
+  @@map("monthly_reports")
+}
+
+model SalaryPayment {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    User     @relation("SalaryPaymentEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  year        Int
+  month       Int
+  amount      Decimal  @db.Decimal(12, 2)
+  note        String?
+  paidById    String
+  paidBy      User     @relation("SalaryPaymentPaidBy", fields: [paidById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId, year, month])
+  @@map("salary_payments")
+}
+
+model MonthlyPayrollSnapshot {
+  id                  String   @id @default(uuid())
+  employeeId          String
+  employee            User     @relation("PayrollSnapshotEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  year                Int
+  month               Int
+  hourlyRate          Decimal  @db.Decimal(12, 2)
+  overtimeMultiplier  Decimal  @default(1.5) @db.Decimal(4, 2)
+  requiredDailyHours  Decimal  @default(8.0) @db.Decimal(4, 2)
+  isLocked            Boolean  @default(false)
+  lockedAt            DateTime?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([employeeId, year, month])
+  @@map("monthly_payroll_snapshots")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  targetUrl String?
+  isRead    Boolean  @default(false)
+  eventKey  String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, eventKey])
+  @@index([userId, createdAt])
+  @@index([userId, isRead, createdAt])
+  @@map("notifications")
+}
+
+// ======================
+// DYNAMIC CONTENT TYPES
+// ======================
+
+model ContentType {
+  id          String         @id @default(uuid())
+  name        String         @unique
+  description String?
+  isActive    Boolean        @default(true)
+
+  createdById String?
+  createdBy   User?          @relation("ContentTypeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  fields      ContentField[]
+  records     EmployeeRecord[]
+
+  @@map("content_types")
+}
+
+model ContentField {
+  id            String      @id @default(uuid())
+  contentTypeId String
+  contentType   ContentType @relation(fields: [contentTypeId], references: [id], onDelete: Cascade)
+
+  label         String
+  fieldType     String      // text | number | email | phone | date | dropdown | radio | checkbox | file | textarea
+  required      Boolean     @default(false)
+  order         Int         @default(0)
+  options       Json?       // for dropdown/radio: [{ label, value }]
+  placeholder   String?
+  helpText      String?
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([contentTypeId])
+  @@map("content_fields")
+}
+
+model EmployeeRecord {
+  id            String      @id @default(uuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  contentTypeId String
+  contentType   ContentType @relation(fields: [contentTypeId], references: [id], onDelete: Cascade)
+
+  data          Json        @default("{}")
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([userId, contentTypeId])
+  @@index([userId])
+  @@index([contentTypeId])
+  @@map("employee_records")
+}
+
+// ======================
+// ORGANISATION PROFILE
+// ======================
+
+/// Single-row table holding the organisation's own details. Used on admin
+/// profiles and as the letterhead for every generated PDF.
+model OrganizationProfile {
+  id                  String   @id @default(uuid())
+
+  name                String
+  legalName           String?
+  registrationNumber  String?
+  taxId               String?
+
+  email               String?
+  phone               String?
+  website             String?
+  addressLine         String?
+  city                String?
+  country             String?
+
+  logoUrl             String?
+  logoStorageId       String?
+
+  updatedById         String?
+  updatedBy           User?    @relation("OrganizationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("organization_profile")
+}
