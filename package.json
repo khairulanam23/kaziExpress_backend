@@ -14,7 +14,8 @@
     "prettier:fix": "prettier --write 'src/**/*.{ts,tsx}'",
     "test": "for f in tests/*.test.ts; do echo \"\u2500\u2500 $f\"; npx ts-node --transpile-only \"$f\" || exit 1; done",
     "resource": "node ./.bin/raw-cli.js resource",
-    "test:phase": "npx ts-node --transpile-only"
+    "test:phase": "npx ts-node --transpile-only",
+    "seed": "ts-node --transpile-only prisma/seed.ts"
   },
   "bin": {
     "resource": "./bin/raw-cli.js"

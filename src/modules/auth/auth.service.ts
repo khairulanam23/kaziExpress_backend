@@ -11,6 +11,8 @@ import { templates } from '../../utils/email/templates';
 import jwt from 'jsonwebtoken';
 import config from '../../config/config';
 
+import { getEffectivePermissions } from '../../utils/permissions/permission-resolver';
+
 const sanitize = <T extends { password?: string; refreshTokenHash?: string | null }>(user: T) => {
   const { password, refreshTokenHash, ...safe } = user;
   return safe;
@@ -45,7 +47,9 @@ const loginUser = async (data: LoginInput) => {
   const { accessToken, refreshToken } = await issueTokens(user.id, user.email, user.role);
   console.log('[Login] Tokens successfully issued.');
 
-  return { user: sanitize(user), accessToken, refreshToken };
+  const permissions = await getEffectivePermissions(user.id, user.role);
+
+  return { user: { ...sanitize(user), permissions }, accessToken, refreshToken };
 };
 
 /**
@@ -90,7 +94,8 @@ const changePassword = async (userId: string, data: ChangePasswordInput) => {
 const getCurrentUser = async (userId: string) => {
   const user = await prisma.user.findUnique({ where: { id: userId }, include: { employeeProfile: true } });
   if (!user) throw ApiError.notFound('User not found');
-  return sanitize(user);
+  const permissions = await getEffectivePermissions(user.id, user.role);
+  return { ...sanitize(user), permissions };
 };
 
 const forgotPassword = async (data: ForgotPasswordInput) => {

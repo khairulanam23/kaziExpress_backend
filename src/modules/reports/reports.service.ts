@@ -463,14 +463,19 @@ export const reportServices = {
       if (s.status === 'PAID') fullyPaidEmployees++;
     }
 
+    const totalEarned = summaries.reduce((sum, s) => sum + s.totalEarned, 0);
+    const totalPaid = summaries.reduce((sum, s) => sum + s.salaryPaid, 0);
+    const totalRemaining = summaries.reduce((sum, s) => sum + s.remainingBalance, 0);
+    const totalApprovedOvertimeEarnings = summaries.reduce((sum, s) => sum + s.overtimeEarnings, 0);
+
     return {
       period: { year, month },
       summary: {
         totalEmployees: summaries.length,
-        totalEarned: overview.totals.totalEarned,
-        totalPaid: overview.totals.totalPaid,
-        totalRemaining: overview.totals.totalRemaining,
-        totalApprovedOvertimeEarnings: overview.totals.totalOvertimeEarnings,
+        totalEarned,
+        totalPaid,
+        totalRemaining,
+        totalApprovedOvertimeEarnings,
         unpaidEmployees,
         partiallyPaidEmployees,
         fullyPaidEmployees,

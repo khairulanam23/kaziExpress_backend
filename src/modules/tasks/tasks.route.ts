@@ -21,40 +21,40 @@ import {
 } from './tasks.validation';
 import { validateId } from '../../handlers/common-zod-validator';
 import isAuthorized from '../../middlewares/is-authorized';
-import { checkRoles } from '../../middlewares/check-roles';
+import { requirePermission } from '../../middlewares/require-permission';
 
 const router = Router();
 
 router.use(isAuthorized);
 
-/** @route GET /api/v1/tasks — Admin sees all, Employee sees assigned */
-router.get('/', validateTaskSearchQuery, getManyTask);
+/** @route GET /api/v1/tasks — View tasks */
+router.get('/', requirePermission('PRODUCTION_VIEW'), validateTaskSearchQuery, getManyTask);
 
-/** @route POST /api/v1/tasks — Admin only: create task with explicit batch allocations */
-router.post('/', checkRoles('ADMIN'), validateCreateTask, createTask);
+/** @route POST /api/v1/tasks — Create task */
+router.post('/', requirePermission('PRODUCTION_CREATE_TASK'), validateCreateTask, createTask);
 
 /** @route GET /api/v1/tasks/:id — Task details */
-router.get('/:id', validateId, getTaskById);
+router.get('/:id', requirePermission('PRODUCTION_VIEW'), validateId, getTaskById);
 
-/** @route POST /api/v1/tasks/:id/accept — Employee/Admin accepts task & reserves batch inventory */
-router.post('/:id/accept', validateId, acceptTask);
+/** @route POST /api/v1/tasks/:id/accept — Accept task */
+router.post('/:id/accept', requirePermission('PRODUCTION_REPORT'), validateId, acceptTask);
 
-/** @route POST /api/v1/tasks/:id/start — Employee/Admin starts task */
-router.post('/:id/start', validateId, startTask);
+/** @route POST /api/v1/tasks/:id/start — Start task */
+router.post('/:id/start', requirePermission('PRODUCTION_REPORT'), validateId, startTask);
 
-/** @route POST /api/v1/tasks/:id/report-production — Employee/Admin reports production result */
-router.post('/:id/report-production', validateId, validateReportProduction, reportProduction);
+/** @route POST /api/v1/tasks/:id/report-production — Report production output */
+router.post('/:id/report-production', requirePermission('PRODUCTION_REPORT'), validateId, validateReportProduction, reportProduction);
 
-/** @route POST /api/v1/tasks/:id/report-damage — Employee/Admin reports damage */
-router.post('/:id/report-damage', validateId, validateReportDamage, reportDamage);
+/** @route POST /api/v1/tasks/:id/report-damage — Report material damage */
+router.post('/:id/report-damage', requirePermission('PRODUCTION_REPORT_DAMAGE'), validateId, validateReportDamage, reportDamage);
 
-/** @route POST /api/v1/tasks/:id/refill-request — Employee requests refill for task */
-router.post('/:id/refill-request', validateId, validateRefillRequest, requestRefill);
+/** @route POST /api/v1/tasks/:id/refill-request — Request refill */
+router.post('/:id/refill-request', requirePermission('PRODUCTION_MANAGE_REFILL'), validateId, validateRefillRequest, requestRefill);
 
-/** @route PATCH /api/v1/tasks/refill-requests/:id — Admin approves or rejects refill request */
-router.patch('/refill-requests/:id', checkRoles('ADMIN'), validateId, validateRefillDecision, decideRefill);
+/** @route PATCH /api/v1/tasks/refill-requests/:id — Decide refill request */
+router.patch('/refill-requests/:id', requirePermission('PRODUCTION_MANAGE_REFILL'), validateId, validateRefillDecision, decideRefill);
 
-/** @route POST /api/v1/tasks/:id/cancel — Admin cancels task & releases batch reservation */
-router.post('/:id/cancel', checkRoles('ADMIN'), validateId, cancelTask);
+/** @route POST /api/v1/tasks/:id/cancel — Cancel task */
+router.post('/:id/cancel', requirePermission('PRODUCTION_MANAGE_TASK'), validateId, cancelTask);
 
 module.exports = router;

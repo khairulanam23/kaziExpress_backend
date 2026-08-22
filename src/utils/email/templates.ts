@@ -101,7 +101,7 @@ const wrap = (content: string) => `
     </div>
     ${content}
     <div style="${FOOTER_STYLE}">
-      <p>This email was sent by Inventory Management System.</p>
+      <p>This email was sent by Kazi Express.</p>
       <p>Please do not reply to this email. If you have questions, contact your admin.</p>
     </div>
   </div>
@@ -150,7 +150,7 @@ export const templates = {
       <h1 style="${H1_STYLE}">Welcome! 👋</h1>
       <p style="${BODY_STYLE}">Hello <strong>${name || 'there'}</strong>,</p>
       <p style="${BODY_STYLE}">
-        Thank you for signing up to the Inventory Management System. Your employee account is now active.
+        Thank you for signing up to Kazi Express. Your employee account is now active.
       </p>
       <div style="${INFO_BOX_STYLE}">
         <div style="${INFO_ROW_STYLE}">

@@ -27,38 +27,38 @@ import {
 } from './reports.validation';
 import { validateId } from '../../handlers/common-zod-validator';
 import isAuthorized from '../../middlewares/is-authorized';
-import { checkRoles } from '../../middlewares/check-roles';
+import { requirePermission } from '../../middlewares/require-permission';
 
 const router = Router();
 
 router.use(isAuthorized);
 
-/** Inventory Reports (Admin Only) */
-router.get('/inventory/pdf', checkRoles('ADMIN'), validateInventoryReportQuery, getInventoryReportPDF);
-router.get('/inventory', checkRoles('ADMIN'), validateInventoryReportQuery, getInventoryReport);
+/** Inventory Reports */
+router.get('/inventory/pdf', requirePermission('REPORT_INVENTORY'), validateInventoryReportQuery, getInventoryReportPDF);
+router.get('/inventory', requirePermission('REPORT_INVENTORY'), validateInventoryReportQuery, getInventoryReport);
 
-/** Stock Movement Reports (Admin Only) */
-router.get('/stock-movements/pdf', checkRoles('ADMIN'), validateStockMovementReportQuery, getStockMovementReportPDF);
-router.get('/stock-movements/export', checkRoles('ADMIN'), validateStockMovementReportQuery, exportStockMovementsCSV);
-router.get('/stock-movements', checkRoles('ADMIN'), validateStockMovementReportQuery, getStockMovementReport);
+/** Stock Movement Reports */
+router.get('/stock-movements/pdf', requirePermission('REPORT_STOCK_MOVEMENTS'), validateStockMovementReportQuery, getStockMovementReportPDF);
+router.get('/stock-movements/export', requirePermission('REPORT_STOCK_MOVEMENTS'), validateStockMovementReportQuery, exportStockMovementsCSV);
+router.get('/stock-movements', requirePermission('REPORT_STOCK_MOVEMENTS'), validateStockMovementReportQuery, getStockMovementReport);
 
-/** Production Reports (Admin / Employee-scoped) */
-router.get('/production/pdf', validateProductionReportQuery, getProductionReportPDF);
-router.get('/production/export', validateProductionReportQuery, exportProductionCSV);
-router.get('/production', validateProductionReportQuery, getProductionReport);
+/** Production Reports */
+router.get('/production/pdf', requirePermission('REPORT_PRODUCTION'), validateProductionReportQuery, getProductionReportPDF);
+router.get('/production/export', requirePermission('REPORT_PRODUCTION'), validateProductionReportQuery, exportProductionCSV);
+router.get('/production', requirePermission('REPORT_PRODUCTION'), validateProductionReportQuery, getProductionReport);
 
-/** Attendance Reports (Admin / Employee-scoped) */
-router.get('/attendance/pdf', validateAttendanceReportQuery, getAttendanceReportPDF);
-router.get('/attendance/export', validateAttendanceReportQuery, exportAttendanceCSV);
-router.get('/attendance', validateAttendanceReportQuery, getAttendanceReport);
+/** Attendance Reports */
+router.get('/attendance/pdf', requirePermission('REPORT_ATTENDANCE'), validateAttendanceReportQuery, getAttendanceReportPDF);
+router.get('/attendance/export', requirePermission('REPORT_ATTENDANCE'), validateAttendanceReportQuery, exportAttendanceCSV);
+router.get('/attendance', requirePermission('REPORT_ATTENDANCE'), validateAttendanceReportQuery, getAttendanceReport);
 
-/** Payroll Reports (Admin Only) */
-router.get('/payroll/pdf', checkRoles('ADMIN'), validatePayrollReportQuery, getPayrollReportPDF);
-router.get('/payroll/export', checkRoles('ADMIN'), validatePayrollReportQuery, exportPayrollCSV);
-router.get('/payroll', checkRoles('ADMIN'), validatePayrollReportQuery, getPayrollReport);
+/** Payroll Reports */
+router.get('/payroll/pdf', requirePermission('REPORT_PAYROLL'), validatePayrollReportQuery, getPayrollReportPDF);
+router.get('/payroll/export', requirePermission('REPORT_PAYROLL'), validatePayrollReportQuery, exportPayrollCSV);
+router.get('/payroll', requirePermission('REPORT_PAYROLL'), validatePayrollReportQuery, getPayrollReport);
 
 /** Employee Performance Reports */
-router.get('/employee-performance/:id/pdf', validateId, validateEmployeePerformanceQuery, getEmployeePerformanceReportPDF);
-router.get('/employee-performance/:id', validateId, validateEmployeePerformanceQuery, getEmployeePerformanceReport);
+router.get('/employee-performance/:id/pdf', requirePermission('REPORT_EMPLOYEE_PERFORMANCE'), validateId, validateEmployeePerformanceQuery, getEmployeePerformanceReportPDF);
+router.get('/employee-performance/:id', requirePermission('REPORT_EMPLOYEE_PERFORMANCE'), validateId, validateEmployeePerformanceQuery, getEmployeePerformanceReport);
 
 module.exports = router;

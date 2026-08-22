@@ -296,7 +296,7 @@ const readDocumentFile = async (id: string) => {
 // Organisation profile (single row)
 // ───────────────────────────────────────────────────────────────────────────
 
-const DEFAULT_ORG_NAME = 'Inventory Management System';
+const DEFAULT_ORG_NAME = 'Kazi Express';
 
 /** Reads the organisation row, creating the default one on first access. */
 const getOrganization = async () => {

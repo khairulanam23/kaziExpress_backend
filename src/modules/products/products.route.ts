@@ -21,7 +21,7 @@ import {
 } from './products.validation';
 import { validateId } from '../../handlers/common-zod-validator';
 import isAuthorized from '../../middlewares/is-authorized';
-import { checkRoles } from '../../middlewares/check-roles';
+import { requirePermission } from '../../middlewares/require-permission';
 
 const parseProductMultipart = (req: any, res: any, next: any) => {
   if (req.body) {
@@ -85,37 +85,37 @@ const router = Router();
 
 router.use(isAuthorized);
 
-/** @route GET /api/v1/products/low-stock — Admin only. Registered before `/:id`. */
-router.get('/low-stock', checkRoles('ADMIN'), getLowStockProducts);
+/** @route GET /api/v1/products/low-stock — Low stock items */
+router.get('/low-stock', requirePermission('PRODUCT_VIEW'), getLowStockProducts);
 
-/** @route GET /api/v1/products — Admin, Employee */
-router.get('/', validateProductSearchQuery, getManyProduct);
+/** @route GET /api/v1/products — Search & list products */
+router.get('/', requirePermission('PRODUCT_VIEW'), validateProductSearchQuery, getManyProduct);
 
-/** @route POST /api/v1/products — Admin only */
-router.post('/', checkRoles('ADMIN'), parseProductMultipart, validateCreateProduct, createProduct);
+/** @route POST /api/v1/products — Create product */
+router.post('/', requirePermission('PRODUCT_CREATE'), parseProductMultipart, validateCreateProduct, createProduct);
 
-/** @route GET /api/v1/products/:id — Admin, Employee */
-router.get('/:id', validateId, getProductById);
+/** @route GET /api/v1/products/:id — Product detail */
+router.get('/:id', requirePermission('PRODUCT_VIEW'), validateId, getProductById);
 
-/** @route PATCH /api/v1/products/:id — Admin only */
-router.patch('/:id', checkRoles('ADMIN'), validateId, parseProductMultipart, validateUpdateProduct, updateProduct);
+/** @route PATCH /api/v1/products/:id — Update product */
+router.patch('/:id', requirePermission('PRODUCT_UPDATE'), validateId, parseProductMultipart, validateUpdateProduct, updateProduct);
 
-/** @route DELETE /api/v1/products/:id — Admin only */
-router.delete('/:id', checkRoles('ADMIN'), validateId, deleteProduct);
+/** @route DELETE /api/v1/products/:id — Delete product */
+router.delete('/:id', requirePermission('PRODUCT_DELETE'), validateId, deleteProduct);
 
-/** @route GET /api/v1/products/:id/bom — Admin, Employee */
-router.get('/:id/bom', validateId, getProductBOM);
+/** @route GET /api/v1/products/:id/bom — View BOM */
+router.get('/:id/bom', requirePermission('BOM_VIEW'), validateId, getProductBOM);
 
-/** @route GET /api/v1/products/:id/bom/cost — Admin, Employee view cost breakdown */
-router.get('/:id/bom/cost', validateId, getProductBOMCost);
+/** @route GET /api/v1/products/:id/bom/cost — View BOM cost breakdown */
+router.get('/:id/bom/cost', requirePermission('BOM_VIEW'), validateId, getProductBOMCost);
 
-/** @route PUT /api/v1/products/:id/bom — Admin only */
-router.put('/:id/bom', checkRoles('ADMIN'), validateId, validateReplaceBOM, replaceProductBOM);
+/** @route PUT /api/v1/products/:id/bom — Replace BOM */
+router.put('/:id/bom', requirePermission('BOM_UPDATE'), validateId, validateReplaceBOM, replaceProductBOM);
 
-/** @route POST /api/v1/products/:id/custom-fields — Admin only */
-router.post('/:id/custom-fields', checkRoles('ADMIN'), validateId, validateCustomField, addOrUpdateCustomField);
+/** @route POST /api/v1/products/:id/custom-fields — Custom fields */
+router.post('/:id/custom-fields', requirePermission('PRODUCT_UPDATE'), validateId, validateCustomField, addOrUpdateCustomField);
 
-/** @route DELETE /api/v1/products/:id/custom-fields/:key — Admin only */
-router.delete('/:id/custom-fields/:key', checkRoles('ADMIN'), validateId, removeCustomField);
+/** @route DELETE /api/v1/products/:id/custom-fields/:key — Custom fields */
+router.delete('/:id/custom-fields/:key', requirePermission('PRODUCT_UPDATE'), validateId, removeCustomField);
 
 module.exports = router;

@@ -137,6 +137,10 @@ model User {
   payrollSnapshots       MonthlyPayrollSnapshot[] @relation("PayrollSnapshotEmployee")
   notifications          Notification[]
   organizationUpdates    OrganizationProfile[]  @relation("OrganizationUpdatedBy")
+  userPermissions        UserPermission[]       @relation("UserPermissions")
+  assignedUserPermissions UserPermission[]       @relation("AssignedPermissions")
+  permissionAuditLogsTarget PermissionAuditLog[] @relation("AuditTargetUser")
+  permissionAuditLogsPerformed PermissionAuditLog[] @relation("AuditPerformedBy")
 
   @@index([role])
   @@index([isActive])
@@ -687,3 +691,54 @@ model OrganizationProfile {
 
   @@map("organization_profile")
 }
+
+// ======================
+// GRANULAR PERMISSIONS & AUDIT LOGS
+// ======================
+
+model Permission {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String?
+  category    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userPermissions UserPermission[]
+
+  @@map("permissions")
+}
+
+model UserPermission {
+  id           String     @id @default(uuid())
+  userId       String
+  user         User       @relation("UserPermissions", fields: [userId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  assignedById String?
+  assignedBy   User?      @relation("AssignedPermissions", fields: [assignedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, permissionId])
+  @@index([userId])
+  @@index([permissionId])
+  @@map("user_permissions")
+}
+
+model PermissionAuditLog {
+  id            String   @id @default(uuid())
+  targetUserId  String
+  targetUser    User     @relation("AuditTargetUser", fields: [targetUserId], references: [id], onDelete: Cascade)
+  performedById String?
+  performedBy   User?    @relation("AuditPerformedBy", fields: [performedById], references: [id], onDelete: SetNull)
+  action        String   // ASSIGN | REMOVE | REPLACE
+  permissionKey String
+  details       Json?
+  createdAt     DateTime @default(now())
+
+  @@index([targetUserId])
+  @@index([performedById])
+  @@map("permission_audit_logs")
+}
+

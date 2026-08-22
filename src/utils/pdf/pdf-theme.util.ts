@@ -174,7 +174,7 @@ export class PdfBuilder {
       .fillColor(THEME.white)
       .font('Helvetica-Bold')
       .fontSize(13)
-      .text(org?.name ?? 'Inventory Management System', this.left, 20, { width: 300, lineBreak: false });
+      .text(org?.name ?? 'Kazi Express', this.left, 20, { width: 300, lineBreak: false });
 
     const orgLine = [org?.addressLine, org?.city, org?.country].filter(Boolean).join(', ');
     const contact = [org?.email, org?.phone].filter(Boolean).join('  ·  ');
@@ -487,7 +487,7 @@ export class PdfBuilder {
       this.doc.on('error', reject);
 
       try {
-        const orgName = this.options.organization?.name ?? 'Inventory Management System';
+        const orgName = this.options.organization?.name ?? 'Kazi Express';
         const stamp = fmtDateTime(this.generatedAt);
         const range = this.doc.bufferedPageRange();
 

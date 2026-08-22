@@ -192,9 +192,12 @@ const server = http.createServer(app);
 // Initialize Socket.io
 initSocket(server);
 
+import { seedSystemPermissions } from './utils/permissions/permission-resolver';
+
 server.listen(config.PORT, async () => {
   // Connect to PostgreSQL via Prisma
   await prisma.$connect();
+  await seedSystemPermissions();
   console.log(
     `${GREEN}✔${RESET} ${WHITE}Connected to PostgreSQL successfully.${RESET}\n`,
     `${GREEN}✔${RESET} ${WHITE}Connected to Redis successfully.${RESET}\n`,

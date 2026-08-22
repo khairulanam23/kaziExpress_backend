@@ -232,6 +232,51 @@
         "tags": ["Reports"],
         "responses": { "200": { "description": "Audit trail records" } }
       }
+    },
+    "/permissions": {
+      "get": {
+        "summary": "Get All System Permissions and Preset Bundles",
+        "tags": ["Permissions"],
+        "responses": {
+          "200": { "description": "All system permissions grouped by category and preset bundles" },
+          "403": { "description": "Forbidden: Requires EMPLOYEE_MANAGE_PERMISSIONS" }
+        }
+      }
+    },
+    "/employees/{id}/permissions": {
+      "get": {
+        "summary": "Get Delegated Employee Permissions",
+        "tags": ["Permissions"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Employee default, assigned, and effective permissions" },
+          "403": { "description": "Forbidden: Requires EMPLOYEE_MANAGE_PERMISSIONS" }
+        }
+      },
+      "put": {
+        "summary": "Replace Employee Explicit Permissions",
+        "tags": ["Permissions"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["permissions"],
+                "properties": {
+                  "permissions": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Permissions replaced successfully" },
+          "400": { "description": "Invalid permission key or user status" },
+          "403": { "description": "Forbidden or self-escalation attempt" }
+        }
+      }
     }
   }
 }

@@ -3,8 +3,10 @@ import { dashboardServices } from './dashboard.service';
 import ServerResponse from '../../helpers/responses/custom-response';
 import catchAsync from '../../utils/catch-async/catch-async';
 
+import { getEffectivePermissions } from '../../utils/permissions/permission-resolver';
+
 interface AuthedRequest extends Request {
-  user?: { id: string; email: string; role: string };
+  user?: { id: string; email: string; role: string; permissions?: string[] };
 }
 
 export const getDashboardOverview = catchAsync(async (req: AuthedRequest, res: Response) => {
@@ -12,7 +14,9 @@ export const getDashboardOverview = catchAsync(async (req: AuthedRequest, res: R
   const to = req.query.to as string | undefined;
   const user = req.user!;
 
-  if (user.role === 'ADMIN') {
+  const permissions = user.permissions || (await getEffectivePermissions(user.id, user.role));
+
+  if (user.role === 'ADMIN' || permissions.includes('DASHBOARD_ADMIN_VIEW')) {
     const data = await dashboardServices.getAdminDashboardOverview(user.id, from, to);
     return ServerResponse(res, true, 200, 'Admin dashboard overview retrieved successfully', data);
   } else {

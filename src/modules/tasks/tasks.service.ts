@@ -726,7 +726,7 @@ export const taskServices = {
     const task = await db.task.findUnique({
       where: { id },
       include: {
-        product: { select: { id: true, name: true, sku: true, itemType: true, unit: true, unitPrice: true } },
+        product: { select: { id: true, name: true, sku: true, itemType: true, unit: true, unitPrice: true, imageUrl: true } },
         createdBy: { select: { id: true, name: true, email: true } },
         completedBy: { select: { id: true, name: true, email: true } },
         assignments: {
@@ -792,7 +792,7 @@ export const taskServices = {
         skip,
         take: showPerPage,
         include: {
-          product: { select: { id: true, name: true, sku: true, unit: true } },
+          product: { select: { id: true, name: true, sku: true, unit: true, imageUrl: true } },
           createdBy: { select: { id: true, name: true, email: true } },
           assignments: {
             include: { employee: { select: { id: true, name: true, email: true } } },

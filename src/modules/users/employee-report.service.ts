@@ -351,7 +351,7 @@ export const generateEmployeeReportPdf = async (
         .fontSize(7.5)
         .font('Helvetica')
         .text('CONFIDENTIAL — For internal HR use only', PAGE_MARGIN, bottomY, { width: 220 })
-        .text(`Inventory Management © ${new Date().getFullYear()}`, PAGE_MARGIN, bottomY, {
+        .text(`Kazi Express © ${new Date().getFullYear()}`, PAGE_MARGIN, bottomY, {
           width: pageWidth - PAGE_MARGIN * 2,
           align: 'center',
         })
