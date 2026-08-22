@@ -689,3 +689,19 @@ export const validateUpdateManyBlog = (req: Request, res: Response, next: NextFu
 For any questions or feedback, please contact [JoySarkar] at [developer.joysarkar@gmail.com].
 
 Feel free to adjust any sections to better fit your project's specifics or personal preferences!
+
+---
+
+## Contributors
+
+### Final Contributor
+
+**Khairul Anam**
+- GitHub: [github.com/khairulanam23](https://github.com/khairulanam23)
+- Email: [mka.rifat.24@gmail.com](mailto:mka.rifat.24@gmail.com)
+
+Responsible for the final round of work on this backend — feature completion, API delivery, fixes, and documentation.
+
+### Special Thanks
+
+Special thanks to [Ishrat](https://github.com/Ishrat2413) for the contributions and support that made this project possible.
