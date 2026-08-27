@@ -1,8 +1,41 @@
 import 'dotenv/config';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { PrismaClient } from '@prisma/client';
 import { getIO } from '../socket/socket';
 
 const basePrisma = new PrismaClient();
+
+/**
+ * Change announcements are emitted from a Prisma query extension, which runs as
+ * each *statement* finishes — not as the surrounding transaction commits. Left
+ * alone that races: a client told "product changed" mid-transaction refetches
+ * and reads the pre-commit row, then caches it, because no second event follows
+ * the commit.
+ *
+ * So writes made inside `$transaction` park their announcements in this
+ * async-local buffer and `$transaction` flushes them once the commit resolves.
+ * A rolled-back transaction discards its buffer, and never announces changes
+ * that did not happen. Writes outside a transaction still emit immediately.
+ */
+interface ChangeBuffer {
+  events: Map<string, string>;
+}
+const transactionScope = new AsyncLocalStorage<ChangeBuffer>();
+
+function announce(model: string, operation: string) {
+  try {
+    const io = getIO();
+    io.emit(`${model}:changed`, { operation });
+    io.emit('db:changed', { model, operation });
+  } catch (_e) {
+    // Ignore if Socket.io is not initialized yet
+  }
+}
+
+function flush(buffer: ChangeBuffer) {
+  for (const [model, operation] of buffer.events) announce(model, operation);
+  buffer.events.clear();
+}
 
 // Low-stock alert queue: debounce to avoid spamming emails
 let lowStockCheckTimeout: NodeJS.Timeout | null = null;
@@ -77,15 +110,12 @@ const prisma = basePrisma.$extends({
         // Emit real-time socket events for all mutations
         const mutations = ['create', 'createMany', 'update', 'updateMany', 'delete', 'deleteMany', 'upsert'];
         if (mutations.includes(operation)) {
-          try {
-            const io = getIO();
-            const modelName = model?.toLowerCase();
-            if (modelName) {
-              io.emit(`${modelName}:changed`, { operation });
-              io.emit('db:changed', { model: modelName, operation });
-            }
-          } catch (_e) {
-            // Ignore if Socket.io is not initialized yet
+          const modelName = model?.toLowerCase();
+          if (modelName) {
+            const buffer = transactionScope.getStore();
+            // Inside a transaction the announcement waits for the commit.
+            if (buffer) buffer.events.set(modelName, operation);
+            else announce(modelName, operation);
           }
 
           // Debounce low-stock email check when stock movements happen
@@ -103,5 +133,22 @@ const prisma = basePrisma.$extends({
     },
   },
 }) as unknown as PrismaClient;
+
+/**
+ * Buffer every announcement made inside a transaction and release them only
+ * once it has committed, so no client is ever told to read uncommitted rows.
+ * Nested calls join the outermost buffer rather than flushing early.
+ */
+const runTransaction = prisma.$transaction.bind(prisma) as (...args: any[]) => Promise<any>;
+(prisma as any).$transaction = (...args: any[]) => {
+  if (transactionScope.getStore()) return runTransaction(...args);
+
+  const buffer: ChangeBuffer = { events: new Map() };
+  return transactionScope.run(buffer, async () => {
+    const result = await runTransaction(...args);
+    flush(buffer); // committed — safe to announce
+    return result;
+  });
+};
 
 export default prisma;
