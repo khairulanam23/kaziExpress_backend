@@ -684,14 +684,6 @@ export const validateUpdateManyBlog = (req: Request, res: Response, next: NextFu
 
 ---
 
-## Contact
-
-For any questions or feedback, please contact [JoySarkar] at [developer.joysarkar@gmail.com].
-
-Feel free to adjust any sections to better fit your project's specifics or personal preferences!
-
----
-
 ## Contributors
 
 ### Final Contributor
