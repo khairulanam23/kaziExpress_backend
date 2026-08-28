@@ -15,6 +15,12 @@ import {
   getPayrollReportPDF,
   exportPayrollCSV,
   getEmployeePerformanceReport,
+  getWasteReport,
+  getReorderReport,
+  getProductionCostReport,
+  getValuationReport,
+  getLabourEfficiencyReport,
+  getVendorPerformanceReport,
   getEmployeePerformanceReportPDF,
 } from './reports.controller';
 import {
@@ -24,6 +30,12 @@ import {
   validateAttendanceReportQuery,
   validatePayrollReportQuery,
   validateEmployeePerformanceQuery,
+  validateWasteReportQuery,
+  validateReorderReportQuery,
+  validateProductionCostQuery,
+  validateValuationQuery,
+  validateLabourEfficiencyQuery,
+  validateVendorPerformanceQuery,
 } from './reports.validation';
 import { validateId } from '../../handlers/common-zod-validator';
 import isAuthorized from '../../middlewares/is-authorized';
@@ -60,5 +72,19 @@ router.get('/payroll', requirePermission('REPORT_PAYROLL'), validatePayrollRepor
 /** Employee Performance Reports */
 router.get('/employee-performance/:id/pdf', requirePermission('REPORT_EMPLOYEE_PERFORMANCE'), validateId, validateEmployeePerformanceQuery, getEmployeePerformanceReportPDF);
 router.get('/employee-performance/:id', requirePermission('REPORT_EMPLOYEE_PERFORMANCE'), validateId, validateEmployeePerformanceQuery, getEmployeePerformanceReport);
+
+/** Waste & scrap analysis — reads the same DAMAGE/WRITE_OFF ledger as the movement report. */
+router.get('/waste', requirePermission('REPORT_STOCK_MOVEMENTS'), validateWasteReportQuery, getWasteReport);
+
+/** Reorder planning & inventory valuation — inventory reporting. */
+router.get('/reorder', requirePermission('REPORT_INVENTORY'), validateReorderReportQuery, getReorderReport);
+router.get('/valuation', requirePermission('REPORT_INVENTORY'), validateValuationQuery, getValuationReport);
+
+/** Production economics — production reporting. */
+router.get('/production-cost', requirePermission('REPORT_PRODUCTION'), validateProductionCostQuery, getProductionCostReport);
+router.get('/labour-efficiency', requirePermission('REPORT_PRODUCTION'), validateLabourEfficiencyQuery, getLabourEfficiencyReport);
+
+/** Vendor performance — purchasing analysis, gated with the inventory reports. */
+router.get('/vendor-performance', requirePermission('REPORT_INVENTORY'), validateVendorPerformanceQuery, getVendorPerformanceReport);
 
 module.exports = router;

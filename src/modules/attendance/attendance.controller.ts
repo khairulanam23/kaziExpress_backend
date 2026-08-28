@@ -8,8 +8,17 @@ interface AuthedRequest extends Request {
 }
 
 export const checkIn = catchAsync(async (req: AuthedRequest, res: Response) => {
-  const result = await attendanceServices.checkIn(req.user!.id, req.body);
-  ServerResponse(res, true, 201, 'Checked in successfully', result);
+  const { attendance, created } = await attendanceServices.checkIn(req.user!.id, req.body);
+  // Only a genuine new session is a 201. Checking in again on a day already
+  // recorded writes nothing, so it answers 200 and says so — the UI was
+  // showing a success toast for a request that did nothing.
+  ServerResponse(
+    res,
+    true,
+    created ? 201 : 200,
+    created ? 'Checked in successfully' : 'Already checked in for today',
+    attendance,
+  );
 });
 
 export const checkOut = catchAsync(async (req: AuthedRequest, res: Response) => {

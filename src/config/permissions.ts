@@ -17,6 +17,7 @@ export const PERMISSION_CATEGORIES = {
   REPORTS: 'Reports & Analytics',
   DASHBOARD: 'Dashboard',
   EMPLOYEE_MGMT: 'Employee & Access Control',
+  SALES: 'Sales & Finished Goods',
 } as const;
 
 export const SYSTEM_PERMISSIONS: PermissionDefinition[] = [
@@ -88,6 +89,7 @@ export const SYSTEM_PERMISSIONS: PermissionDefinition[] = [
   { key: 'REPORT_ATTENDANCE', name: 'View Attendance Reports', description: 'Generate attendance and overtime analytics reports', category: PERMISSION_CATEGORIES.REPORTS },
   { key: 'REPORT_PAYROLL', name: 'View Payroll Reports', description: 'Generate monthly payroll overview and export summaries', category: PERMISSION_CATEGORIES.REPORTS },
   { key: 'REPORT_EMPLOYEE_PERFORMANCE', name: 'View Performance Reports', description: 'Generate employee performance metrics reports', category: PERMISSION_CATEGORIES.REPORTS },
+  { key: 'REPORT_PROFIT', name: 'View Profit Reports', description: 'Generate revenue, cost of goods sold and gross profit reports', category: PERMISSION_CATEGORIES.REPORTS },
   { key: 'REPORT_EXPORT', name: 'Export Reports (PDF/CSV)', description: 'Download PDF and CSV analytical report exports', category: PERMISSION_CATEGORIES.REPORTS },
 
   // ── Dashboard ──
@@ -99,6 +101,14 @@ export const SYSTEM_PERMISSIONS: PermissionDefinition[] = [
   { key: 'EMPLOYEE_CREATE', name: 'Create Employee', description: 'Create new employee user accounts and profiles', category: PERMISSION_CATEGORIES.EMPLOYEE_MGMT },
   { key: 'EMPLOYEE_UPDATE', name: 'Update Employee', description: 'Edit employee details, profiles, and pay structures', category: PERMISSION_CATEGORIES.EMPLOYEE_MGMT },
   { key: 'EMPLOYEE_DELETE', name: 'Deactivate Employee', description: 'Soft-delete or deactivate employee accounts', category: PERMISSION_CATEGORIES.EMPLOYEE_MGMT },
+  // ── Sales & Finished Goods ──
+  { key: 'FINISHED_GOODS_VIEW', name: 'View Finished Goods', description: 'View manufactured batches, their production cost and disposal history', category: PERMISSION_CATEGORIES.SALES },
+  { key: 'SALES_RECORD', name: 'Record Sales & Disposals', description: 'Sell finished goods to a customer or own store, or write them off', category: PERMISSION_CATEGORIES.SALES },
+  { key: 'SALES_REVERSE', name: 'Reverse Sales', description: 'Reverse a recorded disposition and return the stock to its batch', category: PERMISSION_CATEGORIES.SALES },
+  { key: 'SALES_SET_PRICE', name: 'Set Selling Prices', description: 'Set the default selling price used for finished goods', category: PERMISSION_CATEGORIES.SALES },
+  { key: 'CUSTOMER_VIEW', name: 'View Customers', description: 'View the customer directory', category: PERMISSION_CATEGORIES.SALES },
+  { key: 'CUSTOMER_MANAGE', name: 'Manage Customers', description: 'Create, edit and deactivate customers', category: PERMISSION_CATEGORIES.SALES },
+
   { key: 'EMPLOYEE_MANAGE_PERMISSIONS', name: 'Manage Employee Permissions', description: 'Assign, edit, or revoke delegated permissions for employees', category: PERMISSION_CATEGORIES.EMPLOYEE_MGMT },
 ];
 
@@ -122,6 +132,25 @@ export const DEFAULT_EMPLOYEE_PERMISSIONS: string[] = [
  */
 export const PERMISSION_PRESETS = {
   NORMAL_EMPLOYEE: DEFAULT_EMPLOYEE_PERMISSIONS,
+
+  /**
+   * Sells what the floor produces: can see finished goods and their cost, set
+   * prices, record sales and manage the customer directory. Deliberately
+   * excludes SALES_REVERSE — undoing a recorded sale is a supervisor action.
+   */
+  SALES_MANAGER: [
+    'DASHBOARD_VIEW',
+    'NOTIFICATION_VIEW',
+    'PRODUCT_VIEW',
+    'INVENTORY_VIEW',
+    'FINISHED_GOODS_VIEW',
+    'SALES_RECORD',
+    'SALES_SET_PRICE',
+    'CUSTOMER_VIEW',
+    'CUSTOMER_MANAGE',
+    'REPORT_VIEW',
+    'REPORT_PROFIT',
+  ],
 
   INVENTORY_MANAGER: [
     'INVENTORY_VIEW',

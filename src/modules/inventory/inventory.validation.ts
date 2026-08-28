@@ -7,6 +7,7 @@ const zodAddStockSchema = z
     quantity: z.number({ message: 'quantity is required' }).positive(),
     unitCost: z.number().nonnegative().optional(),
     notes: z.string().optional(),
+    vendorId: z.string().uuid({ message: 'Invalid vendorId' }).optional(),
   })
   .strict();
 

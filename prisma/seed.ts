@@ -98,6 +98,17 @@ async function main() {
     },
   });
 
+  // Customers — who finished goods are sold to.
+  console.log('🤝 Creating Customers...');
+  await prisma.customer.createMany({
+    data: [
+      { name: 'Kazi Express Outlet — Gulshan', type: 'OWN_STORE', address: 'Shop 12, Gulshan Circle 2, Dhaka', createdById: admin.id },
+      { name: 'Rahman Electricals Ltd.', type: 'WHOLESALE', phone: '+8801811223344', email: 'purchase@rahmanelectricals.demo', address: 'Nawabpur Road, Dhaka', createdById: admin.id },
+      { name: 'Bengal Industrial Supply', type: 'WHOLESALE', phone: '+8801922334455', email: 'orders@bengalindustrial.demo', address: 'Tongi, Gazipur', createdById: admin.id },
+      { name: 'Shahidul Trading', type: 'RETAIL', phone: '+8801733445566', address: 'Chattogram', createdById: admin.id },
+    ],
+  });
+
   // System Configurations
   await prisma.systemConfig.createMany({
     data: [
@@ -453,6 +464,9 @@ async function main() {
       itemType: ItemType.PRODUCT,
       unit: 'Unit',
       unitPrice: 8500.0,
+      // Default price offered for finished goods; the price actually charged
+      // is recorded on each sale.
+      sellingPrice: 8500.0,
       currency: 'BDT',
       currentStock: 0,
       isComposite: true,
@@ -468,6 +482,9 @@ async function main() {
       itemType: ItemType.PRODUCT,
       unit: 'Unit',
       unitPrice: 5200.0,
+      // Default price offered for finished goods; the price actually charged
+      // is recorded on each sale.
+      sellingPrice: 5200.0,
       currency: 'BDT',
       currentStock: 0,
       isComposite: true,
@@ -483,6 +500,9 @@ async function main() {
       itemType: ItemType.PRODUCT,
       unit: 'Unit',
       unitPrice: 3800.0,
+      // Default price offered for finished goods; the price actually charged
+      // is recorded on each sale.
+      sellingPrice: 3800.0,
       currency: 'BDT',
       currentStock: 0,
       isComposite: true,
@@ -498,6 +518,9 @@ async function main() {
       itemType: ItemType.PRODUCT,
       unit: 'Unit',
       unitPrice: 6900.0,
+      // Default price offered for finished goods; the price actually charged
+      // is recorded on each sale.
+      sellingPrice: 6900.0,
       currency: 'BDT',
       currentStock: 0,
       isComposite: true,
@@ -513,6 +536,9 @@ async function main() {
       itemType: ItemType.PRODUCT,
       unit: 'Unit',
       unitPrice: 9400.0,
+      // Default price offered for finished goods; the price actually charged
+      // is recorded on each sale.
+      sellingPrice: 9400.0,
       currency: 'BDT',
       currentStock: 0,
       isComposite: true,

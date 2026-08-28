@@ -15,7 +15,9 @@
     "test": "for f in tests/*.test.ts; do echo \"\u2500\u2500 $f\"; npx ts-node --transpile-only \"$f\" || exit 1; done",
     "resource": "node ./.bin/raw-cli.js resource",
     "test:phase": "npx ts-node --transpile-only",
-    "seed": "ts-node --transpile-only prisma/seed.ts"
+    "seed": "ts-node --transpile-only prisma/seed.ts",
+    "docs:generate": "npx ts-node --transpile-only scripts/generate-openapi.ts",
+    "backfill:batch-costs": "npx ts-node --transpile-only scripts/backfill-batch-costs.ts"
   },
   "bin": {
     "resource": "./bin/raw-cli.js"

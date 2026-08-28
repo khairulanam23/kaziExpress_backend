@@ -62,13 +62,16 @@ export const attendanceServices = {
     });
 
     if (existing) {
-      // If already checked in, return the existing attendance state
-      return existing;
+      // One attendance record per employee per day, enforced by the unique
+      // constraint — so this is deliberately idempotent. It returns the
+      // existing session flagged as unchanged, because reporting "created" for
+      // a request that wrote nothing made the UI celebrate a no-op.
+      return { attendance: existing, created: false };
     }
 
     const currentRequiredHours = await attendanceServices.getRequiredWorkingHours();
 
-    return prisma.attendance.create({
+    const attendance = await prisma.attendance.create({
       data: {
         employeeId,
         date,
@@ -78,6 +81,8 @@ export const attendanceServices = {
         overtimeStatus: 'PENDING',
       },
     });
+
+    return { attendance, created: true };
   },
 
   /**

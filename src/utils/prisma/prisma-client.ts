@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { PrismaClient } from '@prisma/client';
-import { getIO } from '../socket/socket';
+import { emitToPermissions } from '../socket/socket';
 
 const basePrisma = new PrismaClient();
 
@@ -22,14 +22,77 @@ interface ChangeBuffer {
 }
 const transactionScope = new AsyncLocalStorage<ChangeBuffer>();
 
+/**
+ * Fields that are written as a side effect of signing in, refreshing a token or
+ * signing out. They are session bookkeeping — no screen displays them — but
+ * every login writes them, so announcing them made every connected browser
+ * refetch its users, profile, dashboard and search caches each time anybody
+ * logged in. An update touching only these fields is kept quiet.
+ */
+const BOOKKEEPING_FIELDS: Record<string, Set<string>> = {
+  user: new Set(['refreshTokenHash', 'lastLogin']),
+};
+
+function isBookkeepingOnly(model: string, operation: string, args: any): boolean {
+  const fields = BOOKKEEPING_FIELDS[model];
+  if (!fields) return false;
+  if (operation !== 'update' && operation !== 'updateMany') return false;
+  const data = args?.data;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+  const keys = Object.keys(data);
+  return keys.length > 0 && keys.every((key) => fields.has(key));
+}
+
+/**
+ * Who needs to hear about a change to each model.
+ *
+ * Announcements used to go to every connected socket, so an employee's browser
+ * refetched whenever an admin touched a module they cannot even open. Each
+ * model is now delivered to the permission rooms that gate the screens built on
+ * it; a model missing from this map is broadcast to everyone, so a new model is
+ * over-delivered rather than silently undelivered.
+ *
+ * The announcements carry a model name and no data, and every client still
+ * fetches through the authorized API — this is about traffic, not access.
+ */
+const MODEL_AUDIENCE: Record<string, string[]> = {
+  product: ['PRODUCT_VIEW', 'BOM_VIEW', 'REPORT_INVENTORY', 'DASHBOARD_VIEW'],
+  productbom: ['BOM_VIEW', 'PRODUCT_VIEW'],
+  inventorybatch: ['INVENTORY_VIEW', 'INVENTORY_MANAGE_BATCHES', 'DASHBOARD_VIEW'],
+  stockmovement: ['INVENTORY_VIEW', 'INVENTORY_VIEW_MOVEMENTS', 'REPORT_STOCK_MOVEMENTS', 'DASHBOARD_VIEW'],
+  task: ['PRODUCTION_VIEW', 'REPORT_PRODUCTION', 'DASHBOARD_VIEW'],
+  taskassignment: ['PRODUCTION_VIEW'],
+  taskbatchallocation: ['PRODUCTION_VIEW', 'INVENTORY_MANAGE_BATCHES'],
+  taskrequiredproduct: ['PRODUCTION_VIEW'],
+  productrequest: ['PRODUCTION_VIEW', 'INVENTORY_VIEW', 'DASHBOARD_VIEW'],
+  attendance: ['ATTENDANCE_VIEW', 'ATTENDANCE_VIEW_ALL', 'OVERTIME_VIEW', 'REPORT_ATTENDANCE', 'DASHBOARD_VIEW'],
+  salarypayment: ['PAYROLL_VIEW', 'PAYROLL_VIEW_ALL', 'REPORT_PAYROLL'],
+  monthlypayrollsnapshot: ['PAYROLL_VIEW', 'PAYROLL_VIEW_ALL'],
+  monthlyreport: ['REPORT_VIEW'],
+  user: ['EMPLOYEE_VIEW', 'DASHBOARD_VIEW'],
+  employeeprofile: ['EMPLOYEE_VIEW', 'PAYROLL_VIEW_ALL'],
+  employeedocument: ['EMPLOYEE_VIEW'],
+  organizationprofile: ['DASHBOARD_VIEW'],
+  userpermission: ['EMPLOYEE_MANAGE_PERMISSIONS', 'EMPLOYEE_VIEW'],
+  permission: ['EMPLOYEE_MANAGE_PERMISSIONS'],
+  permissionauditlog: ['EMPLOYEE_MANAGE_PERMISSIONS'],
+  vendor: ['VENDOR_VIEW', 'PRODUCT_VIEW'],
+  customer: ['CUSTOMER_VIEW', 'SALES_RECORD'],
+  disposition: ['FINISHED_GOODS_VIEW', 'REPORT_PROFIT', 'INVENTORY_VIEW', 'DASHBOARD_VIEW'],
+  category: ['CATEGORY_VIEW', 'PRODUCT_VIEW'],
+  notification: ['NOTIFICATION_VIEW'],
+  systemconfig: ['ATTENDANCE_VIEW', 'ATTENDANCE_MANAGE', 'PAYROLL_VIEW'],
+  contenttype: ['EMPLOYEE_VIEW'],
+  contentfield: ['EMPLOYEE_VIEW'],
+  employeerecord: ['EMPLOYEE_VIEW'],
+};
+
 function announce(model: string, operation: string) {
-  try {
-    const io = getIO();
-    io.emit(`${model}:changed`, { operation });
-    io.emit('db:changed', { model, operation });
-  } catch (_e) {
-    // Ignore if Socket.io is not initialized yet
-  }
+  // An unmapped model reaches everyone — losing an update is worse than
+  // sending a spare one.
+  const audience = MODEL_AUDIENCE[model] ?? [];
+  emitToPermissions(audience, `${model}:changed`, { operation });
+  emitToPermissions(audience, 'db:changed', { model, operation });
 }
 
 function flush(buffer: ChangeBuffer) {
@@ -111,7 +174,7 @@ const prisma = basePrisma.$extends({
         const mutations = ['create', 'createMany', 'update', 'updateMany', 'delete', 'deleteMany', 'upsert'];
         if (mutations.includes(operation)) {
           const modelName = model?.toLowerCase();
-          if (modelName) {
+          if (modelName && !isBookkeepingOnly(modelName, operation, args)) {
             const buffer = transactionScope.getStore();
             // Inside a transaction the announcement waits for the commit.
             if (buffer) buffer.events.set(modelName, operation);

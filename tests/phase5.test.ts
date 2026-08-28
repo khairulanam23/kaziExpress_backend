@@ -39,10 +39,13 @@ async function runPhase5Tests() {
 
     // 1. Employee Check-In
     const checkInTime1 = new Date('2026-07-10T09:00:00.000Z');
-    const att1 = await attendanceServices.checkIn(emp1.id, {
+    // checkIn reports whether it actually created a session, so that checking
+    // in twice in a day is no longer answered as though it wrote something.
+    const { attendance: att1, created: att1Created } = await attendanceServices.checkIn(emp1.id, {
       timestamp: checkInTime1,
       source: 'WEB',
     });
+    assert(att1Created === true, 'First check-in of the day creates a session');
 
     assert(att1 !== null && att1.employeeId === emp1.id, 'Employee 1 can check in');
     assert(new Date(att1.checkIn!).toISOString() === checkInTime1.toISOString(), 'Check-in timestamp recorded correctly');
@@ -50,11 +53,12 @@ async function runPhase5Tests() {
     assert(att1.overtimeStatus === 'PENDING', 'Overtime status starts as PENDING');
 
     // 2. Duplicate Check-In Protection (returns existing state on same date)
-    const dupAtt = await attendanceServices.checkIn(emp1.id, {
+    const { attendance: dupAtt, created: dupCreated } = await attendanceServices.checkIn(emp1.id, {
       timestamp: new Date('2026-07-10T10:00:00.000Z'),
       source: 'WEB',
     });
     assert(dupAtt.id === att1.id, 'Duplicate check-in on same date returns existing state without error');
+    assert(dupCreated === false, 'Duplicate check-in reports that nothing was created');
 
     // 3. Cannot Check Out Without Active Check-In
     try {
@@ -147,7 +151,7 @@ async function runPhase5Tests() {
     await attendanceServices.setRequiredWorkingHours(7.5, admin.id);
 
     // New check-in for Employee 1 on 2026-08-10 uses new required hours (7.5)
-    const newAtt = await attendanceServices.checkIn(emp1.id, { timestamp: new Date('2026-08-10T09:00:00.000Z') });
+    const { attendance: newAtt } = await attendanceServices.checkIn(emp1.id, { timestamp: new Date('2026-08-10T09:00:00.000Z') });
     assert(Number(newAtt.requiredHours) === 7.5, 'New check-in uses updated required working hours (7.5)');
 
     // Historical check-in (att1) retains original required hours snapshot (8.0)

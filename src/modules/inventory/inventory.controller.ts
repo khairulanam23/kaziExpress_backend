@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import catchAsync from '../../utils/catch-async/catch-async';
 import ServerResponse from '../../helpers/responses/custom-response';
 import { inventoryService } from './inventory.service';
+import { traceServices } from './inventory.trace.service';
 
 interface AuthedRequest extends Request {
   user?: { id: string; email: string; role: string };
@@ -48,4 +49,15 @@ export const getMovements = catchAsync(async (req: Request, res: Response) => {
     totalPages: result.totalPages,
     currentPage: result.currentPage,
   });
+});
+
+
+/**
+ * Batch genealogy — what this batch was made from, and what was made from it.
+ * The links (`TaskBatchAllocation`, `InventoryBatch.sourceTaskId`) were always
+ * recorded; this is the first endpoint to walk them.
+ */
+export const getBatchTrace = catchAsync(async (req: Request, res: Response) => {
+  const data = await traceServices.getBatchTrace(String(req.params.id));
+  ServerResponse(res, true, 200, 'Batch trace retrieved successfully', data);
 });

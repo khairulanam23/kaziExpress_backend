@@ -33,8 +33,24 @@ enum TaskStatus {
   CANCELLED
 }
 
+enum DispositionType {
+  /// Sold to an external buyer.
+  CUSTOMER_SALE
+  /// Sold on to the business's own store, which is operated separately.
+  STORE_TRANSFER
+  /// Scrapped rather than sold — no revenue, and the cost is lost.
+  WRITE_OFF
+}
+
+enum CustomerType {
+  RETAIL
+  WHOLESALE
+  OWN_STORE
+}
+
 enum StockMovementType {
   PURCHASE
+  SALE
   CONSUMPTION
   ADJUSTMENT
   WRITE_OFF
@@ -141,6 +157,9 @@ model User {
   assignedUserPermissions UserPermission[]       @relation("AssignedPermissions")
   permissionAuditLogsTarget PermissionAuditLog[] @relation("AuditTargetUser")
   permissionAuditLogsPerformed PermissionAuditLog[] @relation("AuditPerformedBy")
+  createdCustomers             Customer[]           @relation("CustomerCreatedBy")
+  dispositionsRecorded         Disposition[]        @relation("DispositionRecordedBy")
+  dispositionsReversed         Disposition[]        @relation("DispositionReversedBy")
 
   @@index([role])
   @@index([isActive])
@@ -217,6 +236,7 @@ model Vendor {
 
   products       Product[]
   productVendors Product[] @relation("ProductVendors")
+  stockMovements StockMovement[]
 
   @@map("vendors")
 }
@@ -244,6 +264,9 @@ model Product {
   unit                      String    @default("Piece")
   remarks                   String?
   unitPrice                 Decimal   @db.Decimal(12, 2)
+  /// Default price offered when disposing of finished goods. The price actually
+  /// charged is recorded on each disposition, so re-pricing never rewrites history.
+  sellingPrice              Decimal?  @db.Decimal(12, 2)
   currency                  String    @default("MNT")
   currentStock              Decimal   @default(0) @db.Decimal(14, 3)
   lowStockThreshold         Decimal?  @db.Decimal(14, 3)
@@ -278,6 +301,7 @@ model Product {
   productRequests                  ProductRequest[]
   batches                          InventoryBatch[]
   tasksAsOutput                    Task[]                 @relation("TaskOutputProduct")
+  dispositions                     Disposition[]
 
   @@index([currentStock])
   @@index([isDiscontinued])
@@ -310,6 +334,16 @@ model InventoryBatch {
   initialQuantity   Decimal               @db.Decimal(14, 3)
   remainingQuantity Decimal               @db.Decimal(14, 3)
   reservedQuantity  Decimal               @default(0) @db.Decimal(14, 3)
+
+  // What this batch actually cost, per unit. Purchased batches are final on
+  // creation. Manufactured batches start provisional — material is known the
+  // moment the output is reported, but labour accrues across the whole run and
+  // is only apportioned once the task completes, which is what stamps
+  // `costFinalizedAt`. Nullable for batches created before costing existed.
+  materialUnitCost  Decimal?              @db.Decimal(12, 4)
+  labourUnitCost    Decimal?              @db.Decimal(12, 4)
+  unitCost          Decimal?              @db.Decimal(12, 4)
+  costFinalizedAt   DateTime?
   createdById       String
   createdBy         User                  @relation(fields: [createdById], references: [id])
   sourceTaskId      String?
@@ -319,8 +353,10 @@ model InventoryBatch {
 
   stockMovements    StockMovement[]
   taskAllocations   TaskBatchAllocation[]
+  dispositions      Disposition[]
 
   @@index([productId])
+  @@index([sourceTaskId])
   @@map("inventory_batches")
 }
 
@@ -331,6 +367,11 @@ model StockMovement {
 
   batchId          String?
   batch            InventoryBatch?   @relation(fields: [batchId], references: [id])
+
+  // Who supplied this movement's stock. Product carries `vendorIds`, but a
+  // multi-vendor product made purchase price unattributable without this.
+  vendorId         String?
+  vendor           Vendor?           @relation(fields: [vendorId], references: [id])
 
   type             StockMovementType
   quantity         Decimal           @db.Decimal(14, 3)
@@ -356,6 +397,7 @@ model StockMovement {
   @@index([type])
   @@index([relatedTaskId])
   @@index([batchId])
+  @@index([vendorId, createdAt])
   @@map("stock_movements")
 }
 
@@ -695,6 +737,87 @@ model OrganizationProfile {
 // ======================
 // GRANULAR PERMISSIONS & AUDIT LOGS
 // ======================
+
+// ======================
+// SALES & DISPOSITIONS
+// ======================
+
+model Customer {
+  id        String       @id @default(uuid())
+  name      String
+  type      CustomerType @default(RETAIL)
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?
+  isActive  Boolean      @default(true)
+
+  createdById String?
+  createdBy   User?      @relation("CustomerCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  dispositions Disposition[]
+
+  @@index([isActive, name])
+  @@map("customers")
+}
+
+/// One disposal of finished goods out of a manufactured batch: a sale, a
+/// transfer to the company's own store, or a write-off.
+///
+/// Revenue and cost are stored rather than derived. Re-pricing a product or
+/// re-costing a batch afterwards must never change what a past month earned,
+/// so the figures are frozen at the moment the disposition is recorded.
+///
+/// Records are immutable — a mistake is corrected by reversing it, which keeps
+/// the audit trail intact in the same way the stock movement ledger does.
+model Disposition {
+  id                String          @id @default(uuid())
+  dispositionNumber String          @unique
+
+  batchId           String
+  batch             InventoryBatch  @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  productId         String
+  product           Product         @relation(fields: [productId], references: [id])
+
+  type              DispositionType
+  /// Required for CUSTOMER_SALE and STORE_TRANSFER; always null for WRITE_OFF.
+  customerId        String?
+  customer          Customer?       @relation(fields: [customerId], references: [id])
+
+  quantity          Decimal         @db.Decimal(14, 3)
+  unitSellingPrice  Decimal         @default(0) @db.Decimal(12, 2)
+  totalRevenue      Decimal         @default(0) @db.Decimal(14, 2)
+
+  unitCogs          Decimal         @db.Decimal(12, 4)
+  totalCogs         Decimal         @db.Decimal(14, 2)
+  grossProfit       Decimal         @db.Decimal(14, 2)
+  /// False when the batch cost was still provisional (labour not yet apportioned).
+  costWasFinal      Boolean         @default(false)
+
+  /// Required for WRITE_OFF.
+  reason            String?
+  notes             String?
+
+  recordedById      String
+  recordedBy        User            @relation("DispositionRecordedBy", fields: [recordedById], references: [id])
+  dispositionedAt   DateTime        @default(now())
+
+  reversedAt        DateTime?
+  reversedById      String?
+  reversedBy        User?           @relation("DispositionReversedBy", fields: [reversedById], references: [id])
+  reversalReason    String?
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([productId, dispositionedAt])
+  @@index([customerId])
+  @@index([type])
+  @@index([batchId])
+  @@map("dispositions")
+}
 
 model Permission {
   id          String   @id @default(uuid())

@@ -2,6 +2,7 @@ import prisma from '../../utils/prisma/prisma-client';
 import ApiError from '../../utils/errors/api-error';
 import { generateBatchNumber } from '../../utils/inventory/batch-generator';
 import { notificationServices } from '../notifications/notification.service';
+import { batchCosting } from '../inventory/batch-costing.service';
 
 export interface CreateTaskPayload {
   title: string;
@@ -409,16 +410,26 @@ export const taskServices = {
         },
       });
 
-      // Log assembly movement for finished product
-      const unitPrice = Number(updatedFinishedProduct.unitPrice);
+      // Cost the output batch from what this run actually consumed. Labour is
+      // apportioned when the task completes — see `batch-costing.service`.
+      const provisionalUnitCost = await batchCosting.costManufacturedBatch(
+        tx,
+        outputBatch.id,
+        task.id,
+        completedQuantity,
+      );
+
+      // Log assembly movement for finished product. The movement records what
+      // the batch cost to make, not what the product sells for — booking the
+      // list price here made every manufactured margin look like zero.
       await tx.stockMovement.create({
         data: {
           productId: task.productId,
           batchId: outputBatch.id,
           type: 'ASSEMBLY',
           quantity: completedQuantity,
-          unitCost: unitPrice,
-          totalCost: completedQuantity * unitPrice,
+          unitCost: provisionalUnitCost,
+          totalCost: completedQuantity * provisionalUnitCost,
           relatedTaskId: task.id,
           performedById: userId,
           notes: `Production output batch ${outputBatchNumber} created from task: ${task.title}`,
@@ -445,6 +456,10 @@ export const taskServices = {
       });
 
       if (isFullyCompleted) {
+        // The run is over, so its labour can finally be split across everything
+        // it produced. Until now those batches carried material cost only.
+        await batchCosting.finalizeTaskCosts(tx, taskId);
+
         await notificationServices.notifyAdmins(
           'Task Completed',
           `Production task "${task.title}" has been completed`,

@@ -1,5 +1,6 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import config from '../../config/config';
+import { recordEmailFailure, recordEmailSuccess } from './email-health';
 
 interface EmailOptions {
   to: string;
@@ -28,15 +29,18 @@ const SendEmail = async ({ to, text, subject, html }: EmailOptions): Promise<boo
 
   try {
     await transporter.sendMail({
-      from: `"Inventory System" <${config.EMAIL_FROM}>`,
+      from: `"Kazi Express" <${config.EMAIL_FROM}>`,
       to,
       subject,
       text,
       html,
     });
+    recordEmailSuccess();
     return true;
   } catch (error) {
-    console.error('[Email] Failed to send email to', to, ':', error);
+    // Logs, and escalates to an in-app admin alert once delivery is clearly
+    // broken rather than failing quietly in the server log forever.
+    recordEmailFailure(to, subject, error);
     return false;
   }
 };

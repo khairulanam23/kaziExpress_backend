@@ -1,6 +1,7 @@
 import prisma from '../../utils/prisma/prisma-client';
 import ApiError from '../../utils/errors/api-error';
 import { generateBatchNumber } from '../../utils/inventory/batch-generator';
+import { batchCosting } from './batch-costing.service';
 
 export interface AddStockPayload {
   productId: string;
@@ -8,6 +9,8 @@ export interface AddStockPayload {
   unitCost?: number;
   notes?: string;
   userId: string;
+  /** Supplier of this delivery. Falls back to the product's vendor when unambiguous. */
+  vendorId?: string;
 }
 
 export interface AdjustStockPayload {
@@ -34,7 +37,7 @@ export const inventoryService = {
    * Add stock to an item. Automatically creates a new batch in a transaction.
    */
   addStock: async (payload: AddStockPayload) => {
-    const { productId, quantity, unitCost, notes, userId } = payload;
+    const { productId, quantity, unitCost, notes, userId, vendorId } = payload;
 
     if (quantity <= 0) {
       throw new ApiError(400, 'Quantity added must be greater than 0');
@@ -43,10 +46,26 @@ export const inventoryService = {
     return await (prisma as any).$transaction(async (tx: any) => {
       const product = await tx.product.findUnique({
         where: { id: productId },
+        include: { vendors: { select: { id: true } } },
       });
 
       if (!product || product.isDiscontinued) {
         throw new ApiError(404, 'Active product not found');
+      }
+
+      // Attribute the purchase to a vendor so price history is answerable
+      // later. An explicit vendor wins; otherwise the product's own vendor is
+      // used, but only when it is unambiguous — guessing between several would
+      // corrupt the very analysis the field exists for.
+      const candidateVendors = product.vendors?.map((v: { id: string }) => v.id) ?? [];
+      const resolvedVendorId =
+        vendorId ??
+        product.vendorId ??
+        (candidateVendors.length === 1 ? candidateVendors[0] : null);
+
+      if (vendorId) {
+        const vendor = await tx.vendor.findUnique({ where: { id: vendorId }, select: { id: true } });
+        if (!vendor) throw new ApiError(404, 'Vendor not found');
       }
 
       const batchNumber = await generateBatchNumber();
@@ -73,10 +92,14 @@ export const inventoryService = {
         },
       });
 
+      // A purchase knows its cost immediately and nothing can change it later.
+      await batchCosting.costPurchasedBatch(tx, batch.id, actualUnitCost);
+
       const movement = await tx.stockMovement.create({
         data: {
           productId,
           batchId: batch.id,
+          vendorId: resolvedVendorId,
           type: 'PURCHASE',
           quantity,
           previousQuantity,

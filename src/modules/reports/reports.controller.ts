@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { reportServices } from './reports.service';
+import { analyticsServices } from './reports.analytics.service';
 import { pdfGenerators } from '../../utils/pdf/pdf-generator.util';
 import { csvExporters } from '../../utils/csv/csv-exporter.util';
 import ServerResponse from '../../helpers/responses/custom-response';
@@ -178,4 +179,43 @@ export const getEmployeePerformanceReportPDF = catchAsync(async (req: AuthedRequ
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="employee-performance-${Date.now()}.pdf"`);
   res.send(pdfBuffer);
+});
+
+
+// ── Analytical reports (roadmap items 4, 5, 7, 11, 12) ─────────────────────
+
+/** Waste & scrap analysis — what was destroyed, what it cost, and where. */
+export const getWasteReport = catchAsync(async (req: AuthedRequest, res: Response) => {
+  const data = await analyticsServices.getWasteReport(readQuery(req));
+  ServerResponse(res, true, 200, 'Waste report retrieved successfully', data);
+});
+
+/** Reorder planning — consumption rate against vendor lead time. */
+export const getReorderReport = catchAsync(async (req: AuthedRequest, res: Response) => {
+  const data = await analyticsServices.getReorderReport(readQuery(req));
+  ServerResponse(res, true, 200, 'Reorder report retrieved successfully', data);
+});
+
+/** Production cost per unit — actual material plus attributed labour. */
+export const getProductionCostReport = catchAsync(async (req: AuthedRequest, res: Response) => {
+  const data = await analyticsServices.getProductionCostReport(readQuery(req));
+  ServerResponse(res, true, 200, 'Production cost report retrieved successfully', data);
+});
+
+/** Inventory valuation — stock on hand at actual acquisition cost. */
+export const getValuationReport = catchAsync(async (req: AuthedRequest, res: Response) => {
+  const data = await analyticsServices.getValuationReport(readQuery(req));
+  ServerResponse(res, true, 200, 'Valuation report retrieved successfully', data);
+});
+
+/** Labour efficiency — output per hour and schedule adherence. */
+export const getLabourEfficiencyReport = catchAsync(async (req: AuthedRequest, res: Response) => {
+  const data = await analyticsServices.getLabourEfficiencyReport(readQuery(req));
+  ServerResponse(res, true, 200, 'Labour efficiency report retrieved successfully', data);
+});
+
+/** Vendor performance — purchase price history and cost drift. */
+export const getVendorPerformanceReport = catchAsync(async (req: AuthedRequest, res: Response) => {
+  const data = await analyticsServices.getVendorPerformanceReport(readQuery(req));
+  ServerResponse(res, true, 200, 'Vendor performance report retrieved successfully', data);
 });

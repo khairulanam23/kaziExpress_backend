@@ -193,11 +193,14 @@ const server = http.createServer(app);
 initSocket(server);
 
 import { seedSystemPermissions } from './utils/permissions/permission-resolver';
+import { startDailyJobs } from './utils/scheduler/daily-scheduler';
+import { documentExpiryJob } from './utils/scheduler/document-expiry.job';
 
 server.listen(config.PORT, async () => {
   // Connect to PostgreSQL via Prisma
   await prisma.$connect();
   await seedSystemPermissions();
+  startDailyJobs([documentExpiryJob]);
   console.log(
     `${GREEN}✔${RESET} ${WHITE}Connected to PostgreSQL successfully.${RESET}\n`,
     `${GREEN}✔${RESET} ${WHITE}Connected to Redis successfully.${RESET}\n`,
