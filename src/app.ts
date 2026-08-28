@@ -36,6 +36,23 @@ app.use(express.urlencoded({ extended: config.URL_ENCODED }));
 app.use(cookieParser());
 app.use(fileUpload(config.EXPRESS_FILE_UPLOAD_CONFIG));
 
+/*
+ * Behind Render (or any reverse proxy) the socket peer is the proxy, not the
+ * caller, so every request looks like it comes from one address — and the
+ * rate limiter then counts all users against a single bucket, handing out
+ * 429s to everyone once any of them exhausts it.
+ *
+ * The value is a hop count rather than `true` on purpose. `true` trusts the
+ * whole `X-Forwarded-For` chain, including the part the client wrote, so a
+ * caller could claim a fresh address per request and never be limited at all
+ * — express-rate-limit rejects that setting outright for the same reason.
+ * Trusting exactly the hops that exist lands on the address the proxy itself
+ * observed, which a caller cannot forge.
+ */
+if (config.TRUST_PROXY > 0) {
+  app.set('trust proxy', config.TRUST_PROXY);
+}
+
 // Security middleware initialization
 app.use(cors());
 app.use(helmet());

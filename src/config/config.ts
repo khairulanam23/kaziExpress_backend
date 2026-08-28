@@ -24,6 +24,13 @@ const envSchema = z.object({
   REQUEST_LIMIT_TIME: z.string().default('900000').transform((v) => parseInt(v, 10)),
   REQUEST_LIMIT_NUMBER: z.string().default('3000').transform((v) => parseInt(v, 10)),
   WEB_CACHE: z.string().default('false').transform((v) => v === 'true'),
+  // Number of proxy hops in front of this server. `0` means none, which is
+  // the only safe default: with the setting on and nothing actually proxying,
+  // a caller's own `X-Forwarded-For` would be believed verbatim.
+  TRUST_PROXY: z
+    .string()
+    .default('0')
+    .transform((v) => (v === 'true' ? 1 : Number.parseInt(v, 10) || 0)),
   STORAGE_PROVIDER: z.enum(['local', 'cloudinary']).default('local'),
   CLOUDINARY_CLOUD_NAME: z.string().default(''),
   CLOUDINARY_API_KEY: z.string().default(''),
@@ -77,6 +84,7 @@ interface Config {
   REQUEST_LIMIT_TIME: number;
   REQUEST_LIMIT_NUMBER: number;
   WEB_CACHE: boolean;
+  TRUST_PROXY: number;
   STORAGE_PROVIDER: 'local' | 'cloudinary';
   CLOUDINARY_CLOUD_NAME: string;
   CLOUDINARY_API_KEY: string;
@@ -105,6 +113,7 @@ const config: Config = {
   REQUEST_LIMIT_TIME: env.REQUEST_LIMIT_TIME,
   REQUEST_LIMIT_NUMBER: env.REQUEST_LIMIT_NUMBER,
   WEB_CACHE: env.WEB_CACHE,
+  TRUST_PROXY: env.TRUST_PROXY,
   STORAGE_PROVIDER: env.STORAGE_PROVIDER,
   CLOUDINARY_CLOUD_NAME: env.CLOUDINARY_CLOUD_NAME,
   CLOUDINARY_API_KEY: env.CLOUDINARY_API_KEY,
