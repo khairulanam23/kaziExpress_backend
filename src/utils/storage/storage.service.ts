@@ -1,4 +1,5 @@
 import { v2 as cloudinary } from 'cloudinary';
+import config from '../../config/config';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -14,16 +15,18 @@ export interface IStorageProvider {
 }
 
 // ────────────────────────────────────────────────
-// Helper to get local base URL
+// On the shape of a stored URL
 // ────────────────────────────────────────────────
-const getBaseUrl = (): string => {
-  const baseUrl = process.env.BASE_URL || 'http://localhost';
-  const port = process.env.PORT || '5001';
-  if (baseUrl.includes('localhost') && !baseUrl.includes(`:${port}`)) {
-    return `${baseUrl}:${port}`;
-  }
-  return baseUrl;
-};
+// The local lane returns a *host-relative* path (`/uploads/<file>`), never an
+// absolute one. Baking the host in at write time is what put rows reading
+// `http://localhost:5000/uploads/...` into a shared database: every other
+// environment then resolved them against the viewer's own machine, and no
+// amount of fixing BASE_URL afterwards could repair data already written.
+// The client resolves a relative path against whichever API it is talking to.
+//
+// Cloudinary is the exception, and deliberately: its `secure_url` is a
+// permanent absolute CDN address that does not depend on where this server
+// runs, so storing it whole is correct.
 
 // ────────────────────────────────────────────────
 // Local Directory Storage Provider
@@ -52,7 +55,7 @@ class LocalStorageProvider implements IStorageProvider {
     await fs.promises.writeFile(dest, file.data);
 
     return {
-      imageUrl: `${getBaseUrl()}/uploads/${filename}`,
+      imageUrl: `/uploads/${filename}`,
       imageStorageId: filename,
     };
   }
@@ -139,12 +142,21 @@ class CloudinaryStorageProvider implements IStorageProvider {
 // ────────────────────────────────────────────────
 // Dynamic Factory Selection
 // ────────────────────────────────────────────────
-const providerType = (process.env.STORAGE_PROVIDER || 'local').toLowerCase();
-
+// Credentials are validated in `config.ts`, which refuses to boot when
+// `cloudinary` is selected without them — so reaching here means the chosen
+// lane is usable.
 export const storageProvider: IStorageProvider =
-  providerType === 'cloudinary'
+  config.STORAGE_PROVIDER === 'cloudinary'
     ? new CloudinaryStorageProvider()
     : new LocalStorageProvider();
+
+// Which lane is live is the single most useful thing to know when an image
+// will not load, and the least obvious from the outside.
+console.log(
+  config.STORAGE_PROVIDER === 'cloudinary'
+    ? `🖼️  Media storage: Cloudinary (cloud: ${config.CLOUDINARY_CLOUD_NAME})`
+    : '🖼️  Media storage: local disk — files are lost on restart on ephemeral hosts such as Render',
+);
 
 // ────────────────────────────────────────────────
 // Private storage lane (legal documents)

@@ -24,6 +24,24 @@ const envSchema = z.object({
   REQUEST_LIMIT_TIME: z.string().default('900000').transform((v) => parseInt(v, 10)),
   REQUEST_LIMIT_NUMBER: z.string().default('3000').transform((v) => parseInt(v, 10)),
   WEB_CACHE: z.string().default('false').transform((v) => v === 'true'),
+  STORAGE_PROVIDER: z.enum(['local', 'cloudinary']).default('local'),
+  CLOUDINARY_CLOUD_NAME: z.string().default(''),
+  CLOUDINARY_API_KEY: z.string().default(''),
+  CLOUDINARY_API_SECRET: z.string().default(''),
+}).superRefine((env, ctx) => {
+  // Missing Cloudinary credentials used to surface as a confusing failure on
+  // the first upload, long after deploy. Refuse to boot instead: a container
+  // that cannot store a file is misconfigured, not merely degraded.
+  if (env.STORAGE_PROVIDER !== 'cloudinary') return;
+  for (const key of ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'] as const) {
+    if (!env[key]) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [key],
+        message: `${key} is required when STORAGE_PROVIDER=cloudinary`,
+      });
+    }
+  }
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -59,6 +77,10 @@ interface Config {
   REQUEST_LIMIT_TIME: number;
   REQUEST_LIMIT_NUMBER: number;
   WEB_CACHE: boolean;
+  STORAGE_PROVIDER: 'local' | 'cloudinary';
+  CLOUDINARY_CLOUD_NAME: string;
+  CLOUDINARY_API_KEY: string;
+  CLOUDINARY_API_SECRET: string;
   EXPRESS_FILE_UPLOAD_CONFIG: object;
 }
 
@@ -83,6 +105,10 @@ const config: Config = {
   REQUEST_LIMIT_TIME: env.REQUEST_LIMIT_TIME,
   REQUEST_LIMIT_NUMBER: env.REQUEST_LIMIT_NUMBER,
   WEB_CACHE: env.WEB_CACHE,
+  STORAGE_PROVIDER: env.STORAGE_PROVIDER,
+  CLOUDINARY_CLOUD_NAME: env.CLOUDINARY_CLOUD_NAME,
+  CLOUDINARY_API_KEY: env.CLOUDINARY_API_KEY,
+  CLOUDINARY_API_SECRET: env.CLOUDINARY_API_SECRET,
   EXPRESS_FILE_UPLOAD_CONFIG: {
     createParentPath: true,
     preserveExtension: true,

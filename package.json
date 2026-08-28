@@ -17,7 +17,8 @@
     "test:phase": "npx ts-node --transpile-only",
     "seed": "ts-node --transpile-only prisma/seed.ts",
     "docs:generate": "npx ts-node --transpile-only scripts/generate-openapi.ts",
-    "backfill:batch-costs": "npx ts-node --transpile-only scripts/backfill-batch-costs.ts"
+    "backfill:batch-costs": "npx ts-node --transpile-only scripts/backfill-batch-costs.ts",
+    "repair:media-urls": "npx ts-node --transpile-only scripts/repair-media-urls.ts"
   },
   "bin": {
     "resource": "./bin/raw-cli.js"
