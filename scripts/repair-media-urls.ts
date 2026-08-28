@@ -23,6 +23,7 @@
 import fs from 'fs';
 import path from 'path';
 import { PrismaClient } from '@prisma/client';
+import { privateStorage } from '../src/utils/storage/storage.service';
 
 const prisma = new PrismaClient();
 const write = process.argv.includes('--write');
@@ -133,10 +134,46 @@ async function main() {
     console.log('');
   }
 
+  // ── Legal documents ─────────────────────────────────────────────────────
+  // Reported, never cleared: the row carries metadata (type, expiry, who
+  // verified it) that outlives the file and that someone may still need. The
+  // point is to say plainly which documents have to be uploaded again.
+  const documents = await prisma.employeeDocument.findMany({
+    select: {
+      id: true,
+      name: true,
+      isPrivate: true,
+      fileStorageId: true,
+      user: { select: { name: true, email: true } },
+    },
+  });
+
+  const unreadable: string[] = [];
+  console.log(`▸ employeeDocument (${documents.length} row(s))`);
+  console.log('   (checked against THIS environment\'s storage — run it where the app is deployed)');
+  for (const doc of documents) {
+    const owner = doc.user?.name ?? doc.user?.email ?? 'unknown';
+    if (!doc.isPrivate) {
+      unreadable.push(`${owner} — ${doc.name} (predates private storage)`);
+      continue;
+    }
+    if (!(await privateStorage.exists(doc.fileStorageId))) {
+      unreadable.push(`${owner} — ${doc.name} (stored file is gone)`);
+    }
+  }
+  if (unreadable.length === 0) {
+    console.log('   all documents are readable\n');
+  } else {
+    console.log('   UNREADABLE — these must be uploaded again:');
+    unreadable.forEach((line) => console.log(`     • ${line}`));
+    console.log('');
+  }
+
   console.log('── Summary');
   console.log(`   kept:        ${totals.KEEP}`);
   console.log(`   relativised: ${totals.RELATIVISE}`);
   console.log(`   cleared:     ${totals.CLEAR}`);
+  console.log(`   documents needing re-upload: ${unreadable.length}`);
   if (!write && totals.RELATIVISE + totals.CLEAR > 0) {
     console.log('\n   Nothing was written. Re-run with --write to apply.');
   }

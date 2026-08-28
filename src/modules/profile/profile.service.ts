@@ -279,7 +279,7 @@ const readDocumentFile = async (id: string) => {
     throw ApiError.notFound('This document predates secure storage and must be re-uploaded');
   }
 
-  if (!privateStorage.exists(doc.fileStorageId)) {
+  if (!(await privateStorage.exists(doc.fileStorageId))) {
     throw ApiError.notFound('The stored file for this document is missing');
   }
 
