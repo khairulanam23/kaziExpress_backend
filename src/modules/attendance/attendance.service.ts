@@ -2,9 +2,6 @@ import prisma from '../../utils/prisma/prisma-client';
 import ApiError from '../../utils/errors/api-error';
 import { notificationServices } from '../notifications/notification.service';
 import {
-  CheckInInput,
-  CheckOutInput,
-  AttendanceSearchQueryInput,
   AdminAttendanceOverrideInput,
   DecideOvertimeInput,
 } from './attendance.validation';

@@ -7,7 +7,6 @@ import {
   deleteDocument,
 } from './documents.controller';
 import {
-  validateCreateDocument,
   validateUpdateDocument,
   validateDocumentListQuery,
 } from './documents.validation';

@@ -1,5 +1,4 @@
 import { Prisma, StockMovementType } from '@prisma/client';
-import prisma from '../../utils/prisma/prisma-client';
 
 /**
  * What a batch of stock actually cost.

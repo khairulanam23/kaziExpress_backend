@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { validateBody, validateQuery } from '../../handlers/zod-error-handler';
-import { validateId } from '../../handlers/common-zod-validator';
 
 /**
  * Documents Module Validation Schemas
