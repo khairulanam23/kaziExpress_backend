@@ -2,7 +2,7 @@ import prisma from '../../utils/prisma/prisma-client';
 import ApiError from '../../utils/errors/api-error';
 import { generateBatchNumber } from '../../utils/inventory/batch-generator';
 import { notificationServices } from '../notifications/notification.service';
-import { batchCosting } from '../inventory/batch-costing.service';
+import { batchCosting, unitCostOfBatch } from '../inventory/batch-costing.service';
 
 export interface CreateTaskPayload {
   title: string;
@@ -223,6 +223,7 @@ export const taskServices = {
       for (const alloc of task.batchAllocations) {
         const batch = await tx.inventoryBatch.findUnique({
           where: { id: alloc.batchId },
+          include: { product: true },
         });
 
         const allocQty = Number(alloc.allocatedQuantity);
@@ -242,14 +243,19 @@ export const taskServices = {
           },
         });
 
+        // Same defect as the consumption movement below: `batch.product` is not
+        // loaded here either. Reservations do not feed costing, but they are
+        // read in the movement ledger, where a zero is just wrong.
+        const { unitCost: reservedUnitCost } = unitCostOfBatch(batch);
+
         await tx.stockMovement.create({
           data: {
             productId: batch.productId,
             batchId: batch.id,
             type: 'TASK_RESERVATION',
             quantity: allocQty,
-            unitCost: Number(batch.product?.unitPrice || 0),
-            totalCost: allocQty * Number(batch.product?.unitPrice || 0),
+            unitCost: reservedUnitCost,
+            totalCost: allocQty * reservedUnitCost,
             relatedTaskId: task.id,
             performedById: userId,
             reason: `Reserved for task: ${task.title}`,
@@ -330,7 +336,9 @@ export const taskServices = {
         where: { id: taskId },
         include: {
           product: true,
-          batchAllocations: { include: { batch: true } },
+          // `batch.product` is needed to value consumption when a batch
+          // predates costing; omitting it is what produced zero-cost movements.
+          batchAllocations: { include: { batch: { include: { product: true } } } },
           assignments: true,
         },
       });
@@ -372,14 +380,28 @@ export const taskServices = {
           },
         });
 
+        /*
+          What the consumed stock actually cost, not what its product lists for.
+          `batch.product` was never selected here, so `batch.product?.unitPrice`
+          was always undefined and `|| 0` wrote a zero — which is what
+          `materialCostOfTask` then summed, giving every manufactured batch a
+          material cost of zero and every sale from one a 100% margin.
+
+          `unitCostOfBatch` is the same rule `resolveUnitCost` applies to a
+          sale, including the fallback for batches that predate costing —
+          applied in memory here because this transaction runs close enough to
+          Prisma's timeout that a lookup per allocation is worth avoiding.
+        */
+        const { unitCost: consumedUnitCost } = unitCostOfBatch(batch);
+
         await tx.stockMovement.create({
           data: {
             productId: batch.productId,
             batchId: batch.id,
             type: 'CONSUMPTION',
             quantity: -consumeQty,
-            unitCost: Number(batch.product?.unitPrice || 0),
-            totalCost: consumeQty * Number(batch.product?.unitPrice || 0),
+            unitCost: consumedUnitCost,
+            totalCost: consumeQty * consumedUnitCost,
             relatedTaskId: task.id,
             performedById: userId,
             notes: `Consumed for task production (${completedQuantity} ${task.product?.unit || 'units'})`,
@@ -675,7 +697,9 @@ export const taskServices = {
       const task = await tx.task.findUnique({
         where: { id: taskId },
         include: {
-          batchAllocations: { include: { batch: true } },
+          // `batch.product` is needed to value consumption when a batch
+          // predates costing; omitting it is what produced zero-cost movements.
+          batchAllocations: { include: { batch: { include: { product: true } } } },
           assignments: true,
         },
       });

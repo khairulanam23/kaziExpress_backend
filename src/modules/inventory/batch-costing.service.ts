@@ -105,6 +105,35 @@ async function labourCostOfTask(tx: Prisma.TransactionClient, taskId: string): P
   return total;
 }
 
+/**
+ * The cost rule, applied to a batch already in memory.
+ *
+ * `resolveUnitCost` below is this same rule plus the query. Production loops
+ * hold their allocation batches already, and their transaction is close enough
+ * to Prisma's timeout that a lookup per allocation is worth avoiding — so the
+ * rule lives here once and both callers share it.
+ */
+export function unitCostOfBatch(batch: {
+  unitCost: Prisma.Decimal | number | null;
+  costFinalizedAt: Date | null;
+  product?: { unitPrice: Prisma.Decimal | number | null } | null;
+}): { unitCost: number; isFinal: boolean; basis: string } {
+  if (batch.unitCost !== null && batch.unitCost !== undefined) {
+    return {
+      unitCost: num(batch.unitCost),
+      isFinal: batch.costFinalizedAt !== null,
+      basis: batch.costFinalizedAt
+        ? 'Actual cost of this batch, material and labour.'
+        : 'Material cost only — this production run has not finished, so labour is not yet included.',
+    };
+  }
+  return {
+    unitCost: num(batch.product?.unitPrice),
+    isFinal: false,
+    basis: 'This batch predates cost tracking, so the product list price is used as an estimate.',
+  };
+}
+
 export const batchCosting = {
   /**
    * Stamp a purchased batch with the cost it was bought at. Final immediately —
@@ -218,22 +247,7 @@ export const batchCosting = {
       },
     });
     if (!batch) throw new Error('Batch not found');
-
-    if (batch.unitCost !== null) {
-      return {
-        unitCost: num(batch.unitCost),
-        isFinal: batch.costFinalizedAt !== null,
-        basis: batch.costFinalizedAt
-          ? 'Actual cost of this batch, material and labour.'
-          : 'Material cost only — this production run has not finished, so labour is not yet included.',
-      };
-    }
-
-    return {
-      unitCost: num(batch.product.unitPrice),
-      isFinal: false,
-      basis: 'This batch predates cost tracking, so the product list price is used as an estimate.',
-    };
+    return unitCostOfBatch(batch);
   },
 };
 
